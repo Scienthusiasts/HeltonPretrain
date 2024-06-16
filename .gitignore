@@ -1,0 +1,10 @@
+__pycache__
+log
+ckpt
+混淆矩阵.png
+类别PR曲线.png
+blip_test.py
+bs_128_lr_2e-3_epoch_49_aug_clip_large_c768_distillloss_100.onnx
+clip_test.py
+debug.txt
+res1.jpg
