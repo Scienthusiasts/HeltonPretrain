@@ -25,9 +25,13 @@ class Model(nn.Module):
         self.cls_name = cls_name
         # Backbone最后一层输出的通道数
         input_c = {
+            'vit_small_patch16_224.augreg_in21k_ft_in1k': 384,  #
+            'tf_efficientnet_b4.ns_jft_in1k':             448,  # √
             'mobilenetv3_small_100.lamb_in1k':            576, 
             'mobilenetv3_large_100.ra_in1k':              960,
+            'mobilenetv4_hybrid_medium.e500_r224_in1k':   960,  #
             'vit_base_patch16_224.augreg2_in21k_ft_in1k': 768, 
+            'resnetaa50d.sw_in12k_ft_in1k':               2048, # √
             'efficientnet_b5.sw_in12k_ft_in1k':           2048,
             'resnetaa50d.d_in12k':                        2048, 
             'resnet50.a1_in1k':                           2048,
@@ -148,8 +152,8 @@ class Model(nn.Module):
     def onnxInfer(self, onnx_model, device, image:np.array, tf):
         tensor_img = torch.tensor(tf.validTF(image=image)['image']).permute(2,0,1).unsqueeze(0)
         onnx_input_img = tensor_img.numpy()
-        # ONNX Runtime 输出
-        embeddings, cls_logits = onnx_model.run(['cls_head', 'clip_head'], {'input': onnx_input_img})
+        # ONNX Runtime 输出(输出的结果不是tensor, 而是numpy??)
+        embeddings, cls_logits = onnx_model.run(['clip_head', 'cls_head'], {'input': onnx_input_img})
         cls_logits = torch.tensor(cls_logits).to(device)
         embeddings = torch.tensor(embeddings).to(device)
         '''不同的推理模式'''

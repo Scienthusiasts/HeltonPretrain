@@ -6,7 +6,7 @@ from torchvision import models
 from models.YOLOBlock import *
 from utils.utils import *
 from models import CLIP
-from loss.loss import InfoNCELoss
+from loss.loss import InfoNCELoss, TripleLoss
 
 
 
@@ -32,6 +32,7 @@ class Head(nn.Module):
         '''损失函数'''
         self.clsLoss = nn.CrossEntropyLoss()
         self.contrastLoss = InfoNCELoss()
+        self.tripletLoss = TripleLoss(margin=1, p=2)
         self.distillLoss = nn.SmoothL1Loss()
 
         '''网络组件'''
@@ -86,6 +87,10 @@ class Head(nn.Module):
         x_embeddings, contrast_x_embeddings = torch.split(combined_x_embeddings, bs, dim=0)
         contrast_label = torch.arange(0, bs).to(combined_x.device)
         contrast_loss = self.contrastLoss(x_embeddings, contrast_x_embeddings, contrast_label)
+        '''Triplet Loss (对比损失)'''
+        triplet_loss = self.tripletLoss(x_embeddings, contrast_x_embeddings)
+
+
         '''蒸馏损失'''
         prompts_token_train = CLIPModel.genTrainLabel()
         img_embeddings, text_embeddings = CLIPModel.forward(batch_clip_imgs, prompts_token_train)
@@ -96,12 +101,13 @@ class Head(nn.Module):
         batch_labels = batch_combined_labels[:bs]
         img_text_contrast_loss = self.contrastLoss(x_embeddings, text_embeddings, batch_labels)
         '''总损失'''
-        total_loss = (cls_loss + contrast_loss + distill_loss + img_text_contrast_loss ) / 5.
+        total_loss = cls_loss + contrast_loss + distill_loss * 100 + img_text_contrast_loss + triplet_loss
         '''损失以字典形式组织'''
         loss = dict(
             total_loss = total_loss,
             cls_loss = cls_loss,
             contrast_loss = contrast_loss,
+            soft_triplet_loss = triplet_loss,
             distill_loss = distill_loss,
             img_text_contrast_loss = img_text_contrast_loss,
         )

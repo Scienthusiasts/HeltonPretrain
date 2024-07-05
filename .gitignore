@@ -1,4 +1,5 @@
 __pycache__
+onnx_ckpt/
 log
 ckpt
 混淆矩阵.png

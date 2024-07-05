@@ -16,12 +16,15 @@ class Transforms():
         self.CoarseDropout = A.Compose([
                 # 随机掩码
                 # A.CoarseDropout(max_holes=10, max_height=40, max_width=40, min_holes=2, min_height=10, min_width=10, fill_value=128, p=0.5),
-                A.CoarseDropout(max_holes=40, max_height=10, max_width=10, min_holes=30, min_height=5, min_width=5, fill_value=128, p=0.5),
+                A.CoarseDropout(max_holes=60, max_height=15, max_width=15, min_holes=30, min_height=5, min_width=5, fill_value=128, p=0.5),
         ])
         # 训练时增强
         self.trainTF = A.ReplayCompose([
                 # 随机旋转
                 A.Rotate(limit=15, p=0.5),
+                # 先看下有没效果:
+                A.VerticalFlip(p=0.5),
+                A.RandomRotate90(p=0.5),
                 # 随机尺寸裁剪并缩放到固定尺寸
                 A.RandomResizedCrop(imgSize[0], imgSize[1], scale=(0,5, 1), ratio=(0.75, 1.33), p=0.5),
                 # 随机镜像

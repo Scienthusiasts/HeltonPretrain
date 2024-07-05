@@ -151,8 +151,31 @@ def inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=Fa
     return cls_logits, sorted_id
 
 
-        
-def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:list[str], half=False):
+
+
+def inferenceSingleImgTTA(model, device, tf, img_path, save_vis_path=False, half=False):
+    '''推理一张图像(测试时增强, 一张原图一张镜像)
+    '''
+    image = Image.open(img_path).convert('RGB')
+    # Image 转numpy
+    img = np.array(image)
+    flip_img = cv2.flip(img, 1)
+    '''推理图像'''
+    cls_logits = model.infer(device, np.array(img), tf, half)
+    flip_cls_logits = model.infer(device, np.array(flip_img), tf, half)
+    aug_logits = cls_logits * 0.5 + flip_cls_logits * 0.5
+
+    sorted_id = sorted(range(len(aug_logits)), key=lambda k: cls_logits[k], reverse=True)
+    '''是否可视化推理结果'''
+    if save_vis_path:
+        visInferResult(image, cls_logits, sorted_id, model.cls_name, save_vis_path)
+    return cls_logits, sorted_id
+
+
+
+
+
+def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:list[str], half=False, tta=False):
     '''推理图像s
     '''
     cat_names_dict = dict(zip(cat_names, [i for i in range(len(cat_names))]))
@@ -162,7 +185,10 @@ def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:l
         cls_img_dir = os.path.join(img_dir, cls_img_dir_name)
         for img_name in os.listdir(cls_img_dir):
             img_path = os.path.join(cls_img_dir, img_name)
-            logits, sorted_id = inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=half)
+            if tta:
+                logits, sorted_id = inferenceSingleImgTTA(model, device, tf, img_path, save_vis_path=False, half=half)
+            else:
+                logits, sorted_id = inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=half)
             soft_list.append(logits)
             pred_list.append(sorted_id[0])
             true_list.append(cat_names_dict[cls_img_dir_name])
@@ -185,6 +211,9 @@ def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:l
     print('='*100)
     print(f"acc.: {acc} | mAP: {mAP} | mF1Score: {mF1Score}")
     print('='*100)
+
+
+
 
 
 

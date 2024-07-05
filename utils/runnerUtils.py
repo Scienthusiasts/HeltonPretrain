@@ -19,7 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 # 自定义模块
 from utils.utils import *
 from datasets.preprocess import Transforms
-
+from opt.sophia import SophiaG
 
 
 
@@ -401,6 +401,7 @@ def optimSheduler(
             None
     '''
     optimizer = {
+        'sophia' : SophiaG(model.parameters(), lr=lr, betas=(0.965, 0.99), rho = 0.05, weight_decay=0), # 改成sophia, cs
         # adam会导致weight_decay错误，使用adam时建议设置为 0
         'adamw' : optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=0),
         'adam' : optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=0),

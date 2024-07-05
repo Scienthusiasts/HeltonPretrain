@@ -1,5 +1,6 @@
 import onnx
 import torch
+import os
 from torch import nn
 import onnxruntime
 
@@ -7,7 +8,9 @@ from utils.runnerUtils import *
 from utils.utils import visInferResult
 
 
-def torchExportOnnx(model:nn.Module, device:str, input_size:list[int], export_name:str, ckpt_path=False, ):
+def torchExportOnnx(model:nn.Module, device:str, input_size:list[int], export_dir:str, export_name:str, ckpt_path=False, ):
+    if not os.path.isdir(export_dir):os.makedirs(export_dir)
+    export_path = os.path.join(export_dir, export_name)
     model = model.to(device)
     # 导入预训练权重
     if ckpt_path:
@@ -21,14 +24,21 @@ def torchExportOnnx(model:nn.Module, device:str, input_size:list[int], export_na
         torch.onnx.export(
             model,                   # 要转换的模型
             x,                       # 模型的任意一组输入
-            export_name,             # 导出的 ONNX 文件名
+            export_path,             # 导出的 ONNX 文件名
             opset_version=11,        # ONNX 算子集版本: https://onnx.ai/onnx/operators/
             input_names=['input'],   # 输入 Tensor 的名称, 如果不指定，会使用默认名字
-            output_names=['cls_head', 'clip_head']  # 输出 Tensor 的名称, 如果不指定，会使用默认名字
+            output_names=['cls_head', 'clip_head'],  # 输出 Tensor 的名称, 如果不指定，会使用默认名字
+            # 动态输入输出设置:
+            dynamic_axes = {
+                # 哪个维度动态字典里索引就设置在哪个维度:
+                'input':     {0: 'batch_size'},
+                'cls_head':  {0: 'batch_size'},
+                'clip_head': {0: 'batch_size'}
+            }
         ) 
 
     # 读取 ONNX 模型
-    onnx_model = onnx.load(export_name)
+    onnx_model = onnx.load(export_path)
     # 检查模型格式是否正确
     onnx.checker.check_model(onnx_model)
     print('无报错, onnx模型导出成功')
@@ -47,8 +57,8 @@ def onnxInferenceSingleImg(model, device:str, tf, img_path:str, onnx_path=False,
         # print(onnxruntime.get_device()) # GPU
         '''载入 onnx 模型，获取 ONNX Runtime 推理器'''
         providers = ['CPUExecutionProvider']
-        # if torch.cuda.is_available():
-        #     providers.insert(0, 'CUDAExecutionProvider')
+        if torch.cuda.is_available():
+            providers.insert(0, 'CUDAExecutionProvider')
         ort_session = onnxruntime.InferenceSession(onnx_path, providers=providers)
     # 加载图像
     image = Image.open(img_path).convert('RGB')

@@ -67,9 +67,9 @@ class Backbone(nn.Module):
 # for test only
 if __name__ == '__main__':
     # mobilenetv3_large_100.ra_in1k  resnet50.a1_in1k  darknetaa53.c2ns_in1k cspdarknet53.ra_in1k cspresnext50.ra_in1k
-    backbone_name = 'mobilenetv3_large_100.ra_in1k'
+    backbone_name = 'tf_efficientnet_b4.ns_jft_in1k'
     backbone = Backbone(backbone_name=backbone_name, pretrain=True)
-    torch.save(backbone.state_dict(), f"ckpt/{backbone_name}_w_sharehead.pt")
+    torch.save(backbone.state_dict(), f"ckpt/{backbone_name}.pt")
     # 验证 2
     # print(backbone)
     x = torch.rand((4, 3, 224, 224))

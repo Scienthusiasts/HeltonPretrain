@@ -272,7 +272,7 @@ class Runner():
 
 
 
-    def tester(self, test_mode:str, img_path:str, save_vis_path:str, ckpt_path:str, onnx_path=False, img_dir=False, id_img_dir=False, half=False):
+    def tester(self, test_mode:str, img_path:str, save_vis_path:str, ckpt_path:str, onnx_path=False, img_dir=False, id_img_dir=False, half=False, tta=False):
         '''把pytorch测试代码独自分装成一个函数
 
         Args:
@@ -292,9 +292,12 @@ class Runner():
         if half: self.model.half()
 
         if test_mode == 'clssify_single':
-            inferenceSingleImg(self.model, self.device, tf, img_path, save_vis_path, half)
+            if tta:
+                inferenceSingleImgTTA(self.model, self.device, tf, img_path, save_vis_path, half)
+            else:
+                inferenceSingleImg(self.model, self.device, tf, img_path, save_vis_path, half)
         if test_mode == 'clssify_batch':
-            inferenceBatchImgs(self.model, self.device, tf, img_dir, self.class_names, half)
+            inferenceBatchImgs(self.model, self.device, tf, img_dir, self.class_names, half, tta)
         elif test_mode == 'identify':
             Identify(self.model, self.device, tf, id_img_dir, half)
         elif test_mode == 'onnx_classify_single':
@@ -306,10 +309,10 @@ class Runner():
 
 
 
-    def exporter(self, export_name, ckpt_path):
+    def exporter(self, export_dir, export_name, ckpt_path):
         '''导出为onnx格式
         '''
-        torchExportOnnx(self.model, self.device, self.img_size, export_name, ckpt_path)
+        torchExportOnnx(self.model, self.device, self.img_size, export_dir, export_name, ckpt_path)
 
 
 

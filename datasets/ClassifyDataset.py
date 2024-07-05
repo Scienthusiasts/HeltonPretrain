@@ -250,7 +250,7 @@ def visContrastBatch(dataLoader, catNames):
 
 # for test only
 if __name__ == '__main__':
-    datasetDir = 'E:/datasets/Classification/cats_dogs/classification'
+    datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs/classification'
     mode = 'train'
     bs = 64
     seed = 22
