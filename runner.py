@@ -272,7 +272,7 @@ class Runner():
 
 
 
-    def tester(self, test_mode:str, img_path:str, save_vis_path:str, ckpt_path:str, onnx_path=False, img_dir=False, id_img_dir=False, half=False, tta=False):
+    def tester(self, test_mode:str, img_path:str, save_vis_path:str, ckpt_path:str, onnx_path=False, img_dir=False, id_img_dir=False, img_pair_paths=False, half=False, tta=False):
         '''把pytorch测试代码独自分装成一个函数
 
         Args:
@@ -298,8 +298,10 @@ class Runner():
                 inferenceSingleImg(self.model, self.device, tf, img_path, save_vis_path, half)
         if test_mode == 'clssify_batch':
             inferenceBatchImgs(self.model, self.device, tf, img_dir, self.class_names, half, tta)
-        elif test_mode == 'identify':
+        elif test_mode == 'identify_all':
             Identify(self.model, self.device, tf, id_img_dir, half)
+        elif test_mode == 'identify_pair':
+            identifyPair(self.model, self.device, tf, img_pair_paths, half)
         elif test_mode == 'onnx_classify_single':
             onnxInferenceSingleImg(model=self.model, onnx_path=onnx_path, device=self.device, tf=tf, img_path=img_path, save_vis_path=save_vis_path)
         elif test_mode == 'onnx_classify_batch':

@@ -212,8 +212,8 @@ eval = dict(
 
 
 test = dict(
-    # clssify_single, clssify_batch, identify, onnx_classify_single, onnx_classify_batch
-    test_mode = 'onnx_classify_batch', 
+    # clssify_single, clssify_batch, identify_all, identify_pair, onnx_classify_single, onnx_classify_batch
+    test_mode = 'identify_pair', 
     ckpt_path = TESTCKPT,
     half=False,
     tta=False,
@@ -224,6 +224,11 @@ test = dict(
     img_dir = valid_img_cat_dir,  
     # identify:
     id_img_dir = "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis",
+    # identify_pair:
+    img_pair_paths = [
+        "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis/20/20.1.jpg", 
+        "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis/37/37.0.jpg",
+        ],
     # onnx_classify_single:
     onnx_path = os.path.join(onnx_export_dir, onnx_export_name)
 )

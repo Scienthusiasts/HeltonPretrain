@@ -224,6 +224,7 @@ def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:l
 def Identify(model, device, tf, img_dir, half=False):
     id_embeddings = []
     id_cats = []
+    avg_sim = []
     for id_set_dir in tqdm(os.listdir(img_dir)):
 
         id_img_dir = os.path.join(img_dir, id_set_dir)
@@ -245,6 +246,7 @@ def Identify(model, device, tf, img_dir, half=False):
     '''计算Recall'''
     Recall = 0
     for idx, id_label in enumerate(id_labels):
+        print(id_sim[id_label])
         values, indices = id_sim[idx].topk(len(id_label), largest=True, sorted=True)
         # 将数组转换为集合
         indices = set(indices.cpu().numpy())
@@ -271,3 +273,26 @@ def Identify(model, device, tf, img_dir, half=False):
     print('top1:', top1_recall, len(id_labels))
 
 
+
+
+
+def identifyPair(model, device, tf, img_pair_paths:list[str], half=False):
+    '''anchor样本'''
+    anchor_image = Image.open(img_pair_paths[0]).convert('RGB')
+    # Image 转numpy
+    anchor_image = np.array(anchor_image)
+    # 推理
+    anchor_embedding = model.inferImgEmbedding(device, np.array(anchor_image), tf, half)
+
+    '''待识别样本'''
+    unknown_image = Image.open(img_pair_paths[1]).convert('RGB')
+    # Image 转numpy
+    unknown_image = np.array(unknown_image)
+    # unknown_image = cv2.flip(unknown_image, 1)
+
+    # 推理
+    unknown_embedding = model.inferImgEmbedding(device, np.array(unknown_image), tf, half)
+
+    # 计算相似度
+    sim = COSSim(anchor_embedding, unknown_embedding) / 100.
+    print('图像对相似度: ', sim.item())
