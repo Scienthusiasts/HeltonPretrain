@@ -10,7 +10,7 @@ IMGSIZE = [224, 224]
 '''mobilenetv3_large_100:'''
 # BACKBONEPATH = f'ckpt/mobilenetv3_large_100.ra_in1k.pt'; MIDC = [768, 768, 768]; KERNELS = [1, 1, 1]; BACKBONENAME = 'mobilenetv3_large_100.ra_in1k'
 '''resnetaa50d.sw_in12k_ft_in1k:'''
-BACKBONEPATH = f'ckpt/resnetaa50d.sw_in12k_ft_in1k.pt'; MIDC = [768, 768, 768]; KERNELS = [1, 1, 1]; BACKBONENAME = 'resnetaa50d.sw_in12k_ft_in1k'
+BACKBONEPATH = f'ckpt/resnetaa50d.sw_in12k_ft_in1k.pt'; MIDC = [512, 512, 768]; KERNELS = [1, 1, 1]; BACKBONENAME = 'resnetaa50d.sw_in12k_ft_in1k'
 '''efficientvit_m5.r224_in1kk:'''
 # BACKBONEPATH = f'ckpt/tf_efficientnet_b4.ns_jft_in1k.pt'; MIDC = [768, 768, 768]; KERNELS = [1, 1, 1]; BACKBONENAME = 'tf_efficientnet_b4.ns_jft_in1k'
 '''vit_small_patch16_224.augreg_in21k_ft_in1k.pt:'''
@@ -25,8 +25,8 @@ onnx_export_dir = os.path.join('onnx_ckpt', TESTCKPT.split('/')[1])
 onnx_export_name = f"{TESTCKPT.split('/')[-2]}.onnx"
 
 
-
-
+TESTCKPT = "last.pt"
+LOADCKPT = "last.pt"
 
 
 '''food-101'''
@@ -149,8 +149,8 @@ runner = dict(
     class_names = cat_names, 
 
     dataset = dict(
-        bs = 8*16,
-        num_workers = 0,
+        bs = 8*12,
+        num_workers = 2,
         # 自定义的Dataset:
         my_dataset = dict(
             path = 'datasets/ClassifyDataset.py',
@@ -198,7 +198,7 @@ runner = dict(
     ),
     optimizer = dict(
         optim_type = 'adamw',
-        lr = 2e-3,
+        lr = 2e-5,
         lr_min_ratio = 0.01,
         warmup_lr_init_ratio = 0.01,
     ),
@@ -212,13 +212,13 @@ eval = dict(
 
 
 test = dict(
-    # clssify_single, clssify_batch, identify_all, identify_pair, onnx_classify_single, onnx_classify_batch
-    test_mode = 'identify_pair', 
+    # clssify_single, clssify_batch, identify_all_by_dynamic_T, identify_pair, onnx_classify_single, onnx_classify_batch
+    test_mode = 'clssify_single', 
     ckpt_path = TESTCKPT,
     half=False,
     tta=False,
     # clssify_single
-    img_path = "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images/miniature_pinscher/miniature_pinscher_49.jpg",
+    img_path = "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images/train/Birman/Birman_17.jpg",
     save_vis_path = './res1.jpg',
     # clssify_batch:
     img_dir = valid_img_cat_dir,  
@@ -226,8 +226,8 @@ test = dict(
     id_img_dir = "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis",
     # identify_pair:
     img_pair_paths = [
-        "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis/20/20.1.jpg", 
-        "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis/37/37.0.jpg",
+        "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis/15/15.0.jpg", 
+        "E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis/15/15.1.jpg",
         ],
     # onnx_classify_single:
     onnx_path = os.path.join(onnx_export_dir, onnx_export_name)

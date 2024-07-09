@@ -3,11 +3,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import importlib
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import random
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+import torch.nn.functional as F
 
 from utils.clipUtils import COSSim
 from utils.metricsUtils import *
@@ -246,7 +247,6 @@ def Identify(model, device, tf, img_dir, half=False):
     '''计算Recall'''
     Recall = 0
     for idx, id_label in enumerate(id_labels):
-        print(id_sim[id_label])
         values, indices = id_sim[idx].topk(len(id_label), largest=True, sorted=True)
         # 将数组转换为集合
         indices = set(indices.cpu().numpy())
@@ -277,22 +277,108 @@ def Identify(model, device, tf, img_dir, half=False):
 
 
 def identifyPair(model, device, tf, img_pair_paths:list[str], half=False):
-    '''anchor样本'''
-    anchor_image = Image.open(img_pair_paths[0]).convert('RGB')
-    # Image 转numpy
-    anchor_image = np.array(anchor_image)
-    # 推理
-    anchor_embedding = model.inferImgEmbedding(device, np.array(anchor_image), tf, half)
+    '''提取两个样本的embeddings'''
+    pair_embeddings = []
+    pair_images = []
+    for img_path in img_pair_paths:
+        image = Image.open(img_path).convert('RGB')
+        # Image 转numpy
+        image = np.array(image)
+        pair_images.append(image)
+        embedding = model.inferImgEmbedding(device, np.array(image), tf, half)
+        pair_embeddings.append(embedding)
+        
 
-    '''待识别样本'''
-    unknown_image = Image.open(img_pair_paths[1]).convert('RGB')
-    # Image 转numpy
-    unknown_image = np.array(unknown_image)
-    # unknown_image = cv2.flip(unknown_image, 1)
+    '''计算相似度'''
+    sim = COSSim(pair_embeddings[0], pair_embeddings[1]) / 100.
+    '''计算动态阈值'''
+    dynamic_T = model.head.lernable_T(torch.cat((pair_embeddings[0], pair_embeddings[1]), dim=1))
+    dynamic_T = F.sigmoid(dynamic_T)
+    # is_pair = sim.item() > dynamic_T.item()
+    is_pair = sim.item() > 0.917
 
-    # 推理
-    unknown_embedding = model.inferImgEmbedding(device, np.array(unknown_image), tf, half)
+    '''可视化预测结果'''
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4))
 
+    fig.suptitle(f"These two samples are {['different', 'the same'][is_pair]} {['identities', 'identity'][is_pair]} | {'sim=%.2f, Td=%.2f'%(sim.item(), dynamic_T.item())}")
+    # 在第一个子图中绘制图像
+    ax1.set_title('sample 1')
+    ax1.axis('off')
+    ax1.imshow(pair_images[0])
+    ax2.set_title('sample 2')
+    ax2.axis('off')
+    ax2.imshow(pair_images[1])
+    # plt.subplots_adjust(left=0.05, right=0.99, bottom=0.1, top=0.90)
+    plt.savefig('./id_res.jpg', dpi=200)
+
+    print('图像对相似度: ', sim.item(), dynamic_T.item(), is_pair)
+    return 
+
+
+
+
+
+def IdentifyByDynamicT(model, device, tf, img_dir, half=False):
+    model.eval()
+    id_embeddings = []
+    id_cats = []
+    # 遍历个体文件夹
+    for id_set_dir in tqdm(os.listdir(img_dir)):
+
+        id_img_dir = os.path.join(img_dir, id_set_dir)
+        for id_img_name in os.listdir(id_img_dir):
+            id_img_path = os.path.join(id_img_dir, id_img_name)
+            image = Image.open(id_img_path).convert('RGB')
+            # Image 转numpy
+            image = np.array(image)
+            '''推理一张图像'''
+            img_embedding = model.inferImgEmbedding(device, np.array(image), tf, half)
+            id_embeddings.append(img_embedding)
+            id_cats.append(int(id_set_dir))
+    id_cats = np.array(id_cats)
     # 计算相似度
-    sim = COSSim(anchor_embedding, unknown_embedding) / 100.
-    print('图像对相似度: ', sim.item())
+    id_embeddings = torch.stack(id_embeddings, dim=1).squeeze(0)
+    # 所有样本两两相似度
+    id_sim = COSSim(id_embeddings, id_embeddings).cpu().numpy() / 100.
+    # 生成标签
+    id_labels = [np.where(id_cats==i)[0] for i in id_cats]
+    # 生成GT矩阵
+    target_M = np.zeros_like(id_sim).astype(bool)
+    for i, id in enumerate(id_labels):
+        target_M[i, id] = True
+    # 总样本数
+    sample_num = id_sim.shape[0]
+    dynamic_T = np.zeros_like(id_sim)
+    # 两两进行比较
+    for i in trange(sample_num):
+        i_expanded = id_embeddings[i].expand(id_embeddings.size(0), -1)
+        cat_embeddings = torch.cat((i_expanded, id_embeddings), dim=1)
+        # 计算动态阈值
+        dynamic_T[i] = F.sigmoid(model.head.lernable_T(cat_embeddings)).squeeze(1).detach().cpu().numpy()
+    # 判别矩阵，如果相似度大于动态阈值，则认为是同一个体
+    # judge_M = (id_sim - dynamic_T) > 0.1 
+    # judge_M = id_sim > dynamic_T
+    judge_M = id_sim > 0.917
+    plt.imshow(judge_M)
+    plt.show()
+    # 获取对角线元素的索引
+    indices = torch.arange(judge_M.shape[0])
+    # 对角线元素不考虑在内(自己和自己比肯定很像, 意义不大)
+    judge_M[indices, indices] = False
+    target_M[indices, indices] = False
+    # 判别矩阵和GT矩阵比较, 计算acc.
+    TP = np.sum(judge_M & target_M)
+    FN = np.sum(~judge_M & target_M)
+    FP = np.sum(judge_M & ~target_M)
+    TN = np.sum(~judge_M & ~target_M)
+    acc = (TP + TN) / (TP + FP + TN + FN)
+    pos_precision = TP / (TP + FP)
+    neg_precision = TN / (TN + FN)
+    pos_recall = TP / (TP + FN)
+    neg_recall = TN / (TN + FP)
+    print(f'acc={acc}\npos_precision={pos_precision}\nneg_precision={neg_precision}\npos_recall={pos_recall}\nneg_recall={neg_recall}')
+
+        
+
+
+

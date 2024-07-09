@@ -107,3 +107,34 @@ class TripleLoss(nn.Module):
         loss = self.loss(anchor, pos, neg)
         return loss
     
+
+
+
+
+
+class ThresholdMarginLoss(nn.Module):
+    '''Threshold Margin Loss: 针对动态可学习阈值的margin损失, 使得对于正样本对, 可学习阈值低于这两个样本的相似度; 对于负样本对, 可学习阈值高于这两个样本的相似度
+
+    '''
+    def __init__(self, alpha=1., gamma=1.):
+        super(ThresholdMarginLoss, self,).__init__()
+        # margin的超参
+        self.alpha = alpha
+        # 平衡正负样本损失权重的超参(正负样本数量不均衡)
+        self.gamma = gamma
+    def forward(self, T_l, x, x_aug, scale=100.):
+        norm_T_l = F.sigmoid(T_l)
+        norm_simM = COSSim(x, x_aug) / scale
+        '''计算负样本的margin'''
+        margin = norm_T_l - norm_simM
+        '''正样本(对角线)的margin符号取反'''
+        # 获取对角线元素的索引
+        indices = torch.arange(T_l.shape[0])
+        # 将对角线元素的符号取反
+        margin[indices, indices] = -margin[indices, indices]
+        weightM = torch.eye(T_l.shape[0]).to(x.device) * (T_l.shape[0]-1) * self.gamma + 1
+        print(torch.sum(margin>0).item() / (T_l.shape[0]*T_l.shape[0]))
+        loss = torch.exp(-self.alpha * margin) * weightM
+        return loss.mean()
+
+

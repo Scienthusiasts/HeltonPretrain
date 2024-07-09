@@ -99,7 +99,7 @@ class ClsDataset(data.Dataset):
             return img_aug.transpose(2,0,1), img_clip.transpose(2,0,1), img_contrast.transpose(2,0,1), torch.LongTensor([label])
         
         if self.mode=='valid':       
-            img = self.normalAlbumAug(self, img)    
+            img = self.normalAlbumAug(img)    
             return img.transpose(2,0,1), torch.LongTensor([label])
     
 
@@ -177,7 +177,7 @@ def visBatch(dataLoader, catNames):
              # 微调行间距
             plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.97, wspace=0.01, hspace=0.2)
 
-        plt.show()
+        plt.savefig('./valid_data.jpg', dpi=200)
 
 
 
@@ -250,21 +250,21 @@ def visContrastBatch(dataLoader, catNames):
 
 # for test only
 if __name__ == '__main__':
-    datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs/classification'
-    mode = 'train'
+    datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images'
+    mode = 'valid'
     bs = 64
     seed = 22
     img_size = [224, 224]
     seed_everything(seed)
-    train_data = ClsDataset(datasetDir, mode, imgSize=img_size, contrast=True)
+    train_data = ClsDataset(datasetDir, mode, imgSize=img_size, contrast=False)
     print(f'数据集大小:{train_data.__len__()}')
     print(f'数据集类别数:{train_data.get_cls_num()}')
     train_data_loader = DataLoader(dataset = train_data, batch_size=bs, shuffle=True)
     # 获取label name
     catNames = sorted(os.listdir(os.path.join(datasetDir, mode)))
     # 可视化一个batch里的图像
-    # visBatch(train_data_loader, catNames)
-    visContrastBatch(train_data_loader, catNames)
+    visBatch(train_data_loader, catNames)
+    # visContrastBatch(train_data_loader, catNames)
     # 输出数据格式
     for step, batch in enumerate(train_data_loader):
         print(batch[0].shape)

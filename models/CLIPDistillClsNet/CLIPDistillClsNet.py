@@ -110,7 +110,7 @@ class Model(nn.Module):
         elif self.infer_mode == 'clip':
             img_logits = COSSim(embeddings, CLIPModel.prompts_embeddings_val.float())
             output = img_logits.softmax(dim=-1).cpu().detach()
-        # 分类结果由分类头和embedding头共同觉得
+        # 分类结果由分类头和embedding头共同决定
         elif self.infer_mode == 'ensemble':
             img_logits = COSSim(embeddings, CLIPModel.prompts_embeddings_val.float())
             logits = cls_logits.softmax(dim=-1) * 0.5 + img_logits.softmax(dim=-1) * 0.5

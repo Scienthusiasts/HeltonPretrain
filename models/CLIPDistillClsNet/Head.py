@@ -6,7 +6,7 @@ from torchvision import models
 from models.YOLOBlock import *
 from utils.utils import *
 from models import CLIP
-from loss.loss import InfoNCELoss, TripleLoss
+from loss.loss import InfoNCELoss, TripleLoss, ThresholdMarginLoss
 
 
 
@@ -29,11 +29,14 @@ class Head(nn.Module):
         '''
         super(Head, self).__init__()
         self.cat_nums = cls_num
+        self.clip_embedding_c = clip_embedding_c
         '''损失函数'''
         self.clsLoss = nn.CrossEntropyLoss()
         self.contrastLoss = InfoNCELoss()
         self.tripletLoss = TripleLoss(margin=1, p=2)
         self.distillLoss = nn.SmoothL1Loss()
+        # 针对可学习动态阈值设定的损失
+        self.TMarginLoss = ThresholdMarginLoss()
 
         '''网络组件'''
         # CLIPModel定义为全局变量, 而不是类成员
@@ -56,10 +59,16 @@ class Head(nn.Module):
 
         # 无论最后尺寸多大，都池化成1x1,这样输入的图像尺寸就可以是任意大小,但必须大于224x224
         self.gap = nn.AdaptiveAvgPool2d(1)
+        '''可学习动态阈值'''
+        self.lernable_T = nn.Sequential(
+            nn.BatchNorm1d(clip_embedding_c*2),
+            nn.Linear(clip_embedding_c*2, 1),
+        )
         # 权重初始化
         init_weights(self.share_head, 'normal', 0, 0.01)
         init_weights(self.cls_head, 'normal', 0, 0.01)
         init_weights(self.clip_head, 'normal', 0, 0.01)
+        # init_weights(self.lernable_T, 'normal', 0, 0.01)
 
 
 
@@ -88,7 +97,7 @@ class Head(nn.Module):
         contrast_label = torch.arange(0, bs).to(combined_x.device)
         contrast_loss = self.contrastLoss(x_embeddings, contrast_x_embeddings, contrast_label)
         '''Triplet Loss (对比损失)'''
-        triplet_loss = self.tripletLoss(x_embeddings, contrast_x_embeddings)
+        # triplet_loss = self.tripletLoss(x_embeddings, contrast_x_embeddings)
 
 
         '''蒸馏损失'''
@@ -100,16 +109,29 @@ class Head(nn.Module):
         '''图文匹配对比损失'''
         batch_labels = batch_combined_labels[:bs]
         img_text_contrast_loss = self.contrastLoss(x_embeddings, text_embeddings, batch_labels)
+        '''可学习动态阈值的损失'''
+        # [bs, 768*2]
+        # 首先扩展成二维concat矩阵(样本与增强样本之间两两concat)
+        embeddings_expanded = x_embeddings.unsqueeze(1)
+        embeddings_expanded = embeddings_expanded.expand(bs, bs, self.clip_embedding_c)
+        contrastx_embeddings_expanded = contrast_x_embeddings.unsqueeze(0)
+        contrastx_embeddings_expanded = contrastx_embeddings_expanded.expand(bs, bs, self.clip_embedding_c)
+        cat_M = torch.cat((embeddings_expanded, contrastx_embeddings_expanded), dim=-1)
+        cat_M = cat_M.reshape(-1, self.clip_embedding_c*2)
+        learnable_T = self.lernable_T(cat_M).reshape(bs, bs)
+        T_margin_loss = self.TMarginLoss(learnable_T, x_embeddings, contrast_x_embeddings)
+
         '''总损失'''
-        total_loss = cls_loss + contrast_loss + distill_loss * 100 + img_text_contrast_loss + triplet_loss
+        total_loss = cls_loss + contrast_loss + distill_loss * 100 + img_text_contrast_loss + T_margin_loss*1# + triplet_loss
         '''损失以字典形式组织'''
         loss = dict(
             total_loss = total_loss,
             cls_loss = cls_loss,
             contrast_loss = contrast_loss,
-            soft_triplet_loss = triplet_loss,
+            # soft_triplet_loss = triplet_loss,
             distill_loss = distill_loss,
             img_text_contrast_loss = img_text_contrast_loss,
+            T_margin_loss = T_margin_loss,
         )
         return loss
 

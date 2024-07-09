@@ -302,6 +302,8 @@ class Runner():
             Identify(self.model, self.device, tf, id_img_dir, half)
         elif test_mode == 'identify_pair':
             identifyPair(self.model, self.device, tf, img_pair_paths, half)
+        elif test_mode == 'identify_all_by_dynamic_T':
+            IdentifyByDynamicT(self.model, self.device, tf, id_img_dir, half)
         elif test_mode == 'onnx_classify_single':
             onnxInferenceSingleImg(model=self.model, onnx_path=onnx_path, device=self.device, tf=tf, img_path=img_path, save_vis_path=save_vis_path)
         elif test_mode == 'onnx_classify_batch':
