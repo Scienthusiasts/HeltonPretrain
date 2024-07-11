@@ -2,6 +2,7 @@
 import os
 import json
 import torch
+import shutil
 import numpy as np
 from tqdm import tqdm
 import torch.backends.cudnn as cudnn
@@ -339,6 +340,8 @@ if __name__ == '__main__':
     runner = Runner(**runner_config)
     # 训练模式
     if runner_config['mode'] == 'train':
+        # 拷贝一份当前训练对应的config文件(方便之后查看细节)
+        shutil.copy(config_path, os.path.join(runner.log_dir, 'config.py'))
         runner.trainer()
     # 验证模式
     elif runner_config['mode'] == 'eval':

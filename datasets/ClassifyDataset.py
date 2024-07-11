@@ -68,8 +68,10 @@ class ClsDataset(data.Dataset):
 
     def getDataByIndex(self, item):
         # 读取图片
-        img = Image.open(self.imgPathList[item]).convert('RGB')     
-        img = np.array(img)
+        # img = Image.open(self.imgPathList[item]).convert('RGB')     
+        # img = np.array(img)
+        img = cv2.imread(self.imgPathList[item])
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # 获取image对应的label
         label = self.labelList[item]                 
         # 数据预处理/数据增强
@@ -83,8 +85,10 @@ class ClsDataset(data.Dataset):
 
     def getContrastDataByIndex(self, item):
         # 读取图片
-        img = Image.open(self.imgPathList[item]).convert('RGB')     
-        img = np.array(img)
+        # img = Image.open(self.imgPathList[item]).convert('RGB')   
+        # img = np.array(img)
+        img = cv2.imread(self.imgPathList[item])
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
         # 获取image对应的label
         label = self.labelList[item]                 
         # 数据预处理/数据增强
@@ -251,20 +255,20 @@ def visContrastBatch(dataLoader, catNames):
 # for test only
 if __name__ == '__main__':
     datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images'
-    mode = 'valid'
+    mode = 'train'
     bs = 64
     seed = 22
     img_size = [224, 224]
     seed_everything(seed)
-    train_data = ClsDataset(datasetDir, mode, imgSize=img_size, contrast=False)
+    train_data = ClsDataset(datasetDir, mode, imgSize=img_size, contrast=True)
     print(f'数据集大小:{train_data.__len__()}')
     print(f'数据集类别数:{train_data.get_cls_num()}')
     train_data_loader = DataLoader(dataset = train_data, batch_size=bs, shuffle=True)
     # 获取label name
     catNames = sorted(os.listdir(os.path.join(datasetDir, mode)))
     # 可视化一个batch里的图像
-    visBatch(train_data_loader, catNames)
-    # visContrastBatch(train_data_loader, catNames)
+    # visBatch(train_data_loader, catNames)
+    visContrastBatch(train_data_loader, catNames)
     # 输出数据格式
     for step, batch in enumerate(train_data_loader):
         print(batch[0].shape)

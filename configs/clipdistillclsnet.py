@@ -18,15 +18,15 @@ BACKBONEPATH = f'ckpt/resnetaa50d.sw_in12k_ft_in1k.pt'; MIDC = [512, 512, 768]; 
 '''mobilenetv4_hybrid_medium.e500_r224.pt:'''
 # BACKBONEPATH = f'ckpt/mobilenetv4_hybrid_medium.e500_r224_in1k.pt'; MIDC = [768, 768, 768]; KERNELS = [1, 1, 1]; BACKBONENAME = 'mobilenetv4_hybrid_medium.e500_r224_in1k'
 
-TESTCKPT = "log/clip_resnetaa50d.sw_in12k_ft_in1k_cats_dogs_37/bs_128_lr_4e-3_epoch_145_aug_clip_distillloss_100_pretrain_sgd/last.pt"
-LOADCKPT = "log/clip_resnetaa50d.sw_in12k_ft_in1k_cats_dogs_37/bs_128_lr_4e-3_epoch_145_aug_clip_distillloss_100_pretrain_sgd/last.pt"
+TESTCKPT = "F:/DeskTop/git/CKPT/HP_ckpt/clip_resnetaa50d.sw_in12k_ft_in1k_cats_dogs_37/clip_resnetaa50d.sw_in12k_ft_in1k_cats_dogs_learnableT/bs_128_lr_2e-3_epoch_49_aug_midc_512/2024-07-07-17-22-35_train/last.pt"
+LOADCKPT = "F:/DeskTop/git/CKPT/HP_ckpt/clip_resnetaa50d.sw_in12k_ft_in1k_cats_dogs_37/clip_resnetaa50d.sw_in12k_ft_in1k_cats_dogs_learnableT/bs_128_lr_2e-3_epoch_49_aug_midc_512/2024-07-07-17-22-35_train/last.pt"
 
 onnx_export_dir = os.path.join('onnx_ckpt', TESTCKPT.split('/')[1])
 onnx_export_name = f"{TESTCKPT.split('/')[-2]}.onnx"
 
 
-TESTCKPT = "last.pt"
-LOADCKPT = "last.pt"
+TESTCKPT = "last_fp16.pt"
+# LOADCKPT = "last.pt"
 
 
 '''food-101'''
@@ -59,7 +59,7 @@ LOADCKPT = "last.pt"
 '''cats_dogs'''
 # img_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs/classification'
 # train_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs/classification/train'
-# valid_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs/classification/train'
+# valid_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs/classification/valid'
 # cat_names = [cat_name for cat_name in os.listdir(train_img_cat_dir)]
 # cat_names.sort()
 # cls_num = len(cat_names)
@@ -97,9 +97,9 @@ LOADCKPT = "last.pt"
 
 
 '''cats & dogs 37'''
-img_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images'
-train_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images/train'
-valid_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images/valid'
+img_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/Oxford_IIIT_Pet_FlickrBreeds'
+train_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/Oxford_IIIT_Pet_FlickrBreeds/train'
+valid_img_cat_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/Oxford_IIIT_Pet_FlickrBreeds/valid'
 cat_names = [cat_name for cat_name in os.listdir(train_img_cat_dir)]
 cat_names.sort()
 cls_num = len(cat_names)
@@ -213,7 +213,7 @@ eval = dict(
 
 test = dict(
     # clssify_single, clssify_batch, identify_all_by_dynamic_T, identify_pair, onnx_classify_single, onnx_classify_batch
-    test_mode = 'clssify_single', 
+    test_mode = 'identify_all_by_dynamic_T', 
     ckpt_path = TESTCKPT,
     half=False,
     tta=False,

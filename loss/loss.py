@@ -122,7 +122,9 @@ class ThresholdMarginLoss(nn.Module):
         self.alpha = alpha
         # 平衡正负样本损失权重的超参(正负样本数量不均衡)
         self.gamma = gamma
-    def forward(self, T_l, x, x_aug, scale=100.):
+        
+    def forward_(self, T_l, x, x_aug, scale=100.):
+        '''正负样本不平衡采样'''
         norm_T_l = F.sigmoid(T_l)
         norm_simM = COSSim(x, x_aug) / scale
         '''计算负样本的margin'''
@@ -133,8 +135,68 @@ class ThresholdMarginLoss(nn.Module):
         # 将对角线元素的符号取反
         margin[indices, indices] = -margin[indices, indices]
         weightM = torch.eye(T_l.shape[0]).to(x.device) * (T_l.shape[0]-1) * self.gamma + 1
-        print(torch.sum(margin>0).item() / (T_l.shape[0]*T_l.shape[0]))
-        loss = torch.exp(-self.alpha * margin) * weightM
+        # print(torch.sum(margin>0).item() / (T_l.shape[0]*T_l.shape[0]))
+        loss = torch.exp(-self.alpha * margin) * weightM 
         return loss.mean()
 
+    def forward(self, T_l, x, x_aug, scale=100.):
+        '''正负样本平衡采样'''
+        norm_T_l = F.sigmoid(T_l)
+        norm_simM = COSSim(x, x_aug) / scale
+        '''计算负样本的margin'''
+        margin = norm_T_l - norm_simM
+        '''正样本(对角线)的margin符号取反'''
+        # 获取对角线元素的索引
+        indices = torch.arange(T_l.shape[0])
+        # 将对角线元素的符号取反
+        margin[indices, indices] = -margin[indices, indices]
+        '''获取正样本'''
+        pos_samples = margin[indices, indices]
+        '''随机采样负样本,个数等于正样本个数'''
+        # 创建一个 bool 掩码，标记对角线元素
+        mask = torch.eye(T_l.shape[0], dtype=bool)
+        # 获取非对角线元素的索引
+        non_diag_indices = torch.nonzero(~mask, as_tuple=False)
+        # 随机采样 n 个非对角线元素
+        neg_indices = non_diag_indices[torch.randperm(non_diag_indices.size(0))[:T_l.shape[0]]]
+        # 根据采样的索引从 A 中提取对应的元素
+        neg_samples = margin[neg_indices[:, 0], neg_indices[:, 1]]
+        # 将正负样本拼在一起
+        samples = torch.cat((pos_samples, neg_samples), dim=0)
+        print(torch.sum(samples>0).item() / (T_l.shape[0]*2))
+        loss = torch.exp(-self.alpha * samples)
+        return loss.mean()
+    
 
+
+
+
+
+
+class IdClassifyLoss(nn.Module):
+    def __init__(self, ):
+        super(IdClassifyLoss, self,).__init__()
+        self.loss = nn.CrossEntropyLoss()
+
+
+    def forward(self, learnable_T, target_GT):
+        '''获取正样本(对角线)'''
+        # print(learnable_T.shape, target_GT.shape)
+        pos_samples = learnable_T[target_GT==1]
+        pos_labels = target_GT[target_GT==1]
+        '''随机采样负样本,个数等于正样本个数'''
+        # 获取正样本索引
+        non_diag_indices = torch.nonzero(target_GT == 0, as_tuple=True)[0]
+        # 随机采样 n 个负样本索引
+        neg_indices = non_diag_indices[torch.randperm(non_diag_indices.size(0))[:pos_samples.shape[0]]]
+        # 根据采样的索引从 A 中提取对应的元素
+        neg_samples = learnable_T[neg_indices]
+        neg_labels = target_GT[neg_indices]
+        # 将正负样本拼在一起
+        samples = torch.cat((pos_samples, neg_samples), dim=0)
+        labels = torch.cat((pos_labels, neg_labels), dim=0)
+        print(samples.shape, labels.shape)
+        print(torch.sum(torch.argmax(samples, dim=1)==labels)/samples.shape[0])
+        # print(torch.sum(samples>0).item() / samples.shape[0])
+        loss = self.loss(samples, labels)
+        return loss
