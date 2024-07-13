@@ -7,7 +7,7 @@ from utils.clipUtils import COSSim
 from models import CLIP
 from models.CLIPDistillClsNet.Backbone import Backbone
 from models.CLIPDistillClsNet.Head import Head
-from models.CLIPDistillClsNet.DecoupledHead import DecoupledHead
+from models.CLIPDistillClsNet.LPromptHead import LPromptHead
 
 
 
@@ -45,11 +45,11 @@ class Model(nn.Module):
         '''网络组件'''
         # CLIPModel定义为全局变量, 而不是类成员
         global CLIPModel
-        CLIPModel = CLIP.Model(backbone_name='ViT-B', **clip)
+        CLIPModel = CLIP.Model(backbone_name='ViT-L', **clip)
         # Backbone最好使用原来的预训练权重初始化
         self.backbone = Backbone(backbone_name=backbone_name, **backbone)
+        # self.head = LPromptHead(cls_num=self.cat_nums, input_c=input_c, clip_model=CLIPModel, **head)
         self.head = Head(cls_num=self.cat_nums, input_c=input_c, clip_model=CLIPModel, **head)
-        # self.head = DecoupledHead(cls_num=self.cat_nums, input_c=input_c, clip_model=CLIPModel, **head)
 
         '''是否导入预训练权重'''
         if loadckpt: 
@@ -59,6 +59,20 @@ class Model(nn.Module):
             self = loadWeightsBySizeMatching(self, loadckpt)
 
     
+        # for param in self.backbone.parameters():
+        #     param.requires_grad_(False)
+        # for param in self.head.share_head.parameters():
+        #     param.requires_grad_(False)
+        # for param in self.head.cls_head.parameters():
+        #     param.requires_grad_(False)
+        # for param in self.head.clip_head.parameters():
+        #     param.requires_grad_(False)
+        # for param in self.head.learnable_T.parameters():
+        #     param.requires_grad_(False)
+        # self.head.l_prompts = nn.Parameter(CLIPModel.prompts_embeddings_val.float())
+
+
+
     def forward(self, x):
         x = self.backbone(x)
         cls_logits, embeddings = self.head(x)
@@ -114,8 +128,9 @@ class Model(nn.Module):
         elif self.infer_mode == 'ensemble':
             img_logits = COSSim(embeddings, CLIPModel.prompts_embeddings_val.float())
             logits = cls_logits.softmax(dim=-1) * 0.5 + img_logits.softmax(dim=-1) * 0.5
+            # img_logits = COSSim(embeddings, self.head.l_prompts)
+            # logits = img_logits.softmax(dim=-1)
             output = logits.cpu().detach()
-
         return output
 
 

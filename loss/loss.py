@@ -36,7 +36,29 @@ class InfoNCELoss(nn.Module):
 
 
 
-class SoftTriple(nn.Module):
+
+class JSDLoss(nn.Module):
+    '''计算两个概率分布的Jensen-Shannon Divergence, 可以在蒸馏时代替SmoothL1试试
+       p=[bs, C], q=[bs, C]
+    '''
+    def __init__(self):
+        super(JSDLoss, self).__init__()
+        
+    def forward(self, p, q):
+        m = 0.5 * (p + q)
+        kl_pm = F.kl_div(p.log(), m)
+        kl_qm = F.kl_div(q.log(), m)
+        jsd = 0.5 * (kl_pm + kl_qm)
+        return jsd.mean()
+
+
+
+
+
+
+
+
+class SoftTripleLoss(nn.Module):
     '''SoftTriple 损失: 无需三元组采样的深度度量学习
        https://github.com/idstcv/SoftTriple/blob/master/loss/SoftTriple.py
 

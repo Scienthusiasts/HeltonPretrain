@@ -14,9 +14,9 @@ class Transforms():
     '''
     def __init__(self, imgSize):
         self.CoarseDropout = A.Compose([
-                # 随机掩码
-                A.CoarseDropout(max_holes=10, max_height=40, max_width=40, min_holes=5, min_height=10, min_width=10, fill_value=128, p=0.5),
-                # A.CoarseDropout(max_holes=40, max_height=10, max_width=10, min_holes=30, min_height=5, min_width=5, fill_value=128, p=0.5),
+                # 随机掩码 (第一个针对分类任务效果好些)
+                # A.CoarseDropout(max_holes=10, max_height=40, max_width=40, min_holes=5, min_height=10, min_width=10, fill_value=128, p=0.5),
+                A.CoarseDropout(max_holes=40, max_height=10, max_width=10, min_holes=30, min_height=5, min_width=5, fill_value=128, p=0.5),
         ])
         # 训练时增强
         self.trainTF = A.ReplayCompose([
@@ -26,7 +26,7 @@ class Transforms():
                 # A.VerticalFlip(p=0.5),
                 # A.RandomRotate90(p=0.5),
                 # 随机尺寸裁剪并缩放到固定尺寸
-                A.RandomResizedCrop(imgSize[0], imgSize[1], scale=(0.4, 1), ratio=(0.75, 1.33), p=0.5),
+                A.RandomResizedCrop(imgSize[0], imgSize[1], scale=(0.3, 1), ratio=(0.75, 1.33), p=0.5),
                 # 随机镜像
                 A.HorizontalFlip(p=0.5),
                 # 参数：随机色调、饱和度、值变化

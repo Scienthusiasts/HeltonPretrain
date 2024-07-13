@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageFile
 import torch.utils.data.dataset as data
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
@@ -11,7 +11,8 @@ import cv2
 # 自定义
 from utils.utils import seed_everything
 from datasets.preprocess import Transforms
-
+# 允许加载截断的图像
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 
@@ -85,10 +86,11 @@ class ClsDataset(data.Dataset):
 
     def getContrastDataByIndex(self, item):
         # 读取图片
-        # img = Image.open(self.imgPathList[item]).convert('RGB')   
-        # img = np.array(img)
-        img = cv2.imread(self.imgPathList[item])
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
+        try:
+            img = cv2.imread(self.imgPathList[item])
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  
+        except:
+            print(self.imgPathList[item])
         # 获取image对应的label
         label = self.labelList[item]                 
         # 数据预处理/数据增强
@@ -254,9 +256,9 @@ def visContrastBatch(dataLoader, catNames):
 
 # for test only
 if __name__ == '__main__':
-    datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images'
+    datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/cats_vs_dogs_merge'
     mode = 'train'
-    bs = 64
+    bs = 256
     seed = 22
     img_size = [224, 224]
     seed_everything(seed)
@@ -268,9 +270,9 @@ if __name__ == '__main__':
     catNames = sorted(os.listdir(os.path.join(datasetDir, mode)))
     # 可视化一个batch里的图像
     # visBatch(train_data_loader, catNames)
-    visContrastBatch(train_data_loader, catNames)
+    # visContrastBatch(train_data_loader, catNames)
     # 输出数据格式
     for step, batch in enumerate(train_data_loader):
-        print(batch[0].shape)
-        print(batch[1].shape)
-        break
+        # print(batch[0].shape)
+        # print(batch[1].shape)
+        print(step)

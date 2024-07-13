@@ -69,7 +69,7 @@ class DecoupledHead(nn.Module):
         global CLIPModel
         CLIPModel = clip_model
         # 特征提取
-
+        # 有三个任务头:
         self.share_head = nn.Sequential(
                     Conv(input_c , mid_c[0], kernel_s[0], 1, 0),
                     Conv(mid_c[0], mid_c[1], kernel_s[1], 1, 0),
