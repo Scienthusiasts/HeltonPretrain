@@ -22,6 +22,10 @@ rcParams.update(config)
 
 
 
+# 判断模型是否是pytorch的dp或ddp实例
+def is_parallel(model):
+    # Returns True if model is of type DP or DDP
+    return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
 
 
 

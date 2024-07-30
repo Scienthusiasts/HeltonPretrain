@@ -13,7 +13,7 @@ from loss.loss import InfoNCELoss, TripleLoss, ThresholdMarginLoss, IdClassifyLo
 class LPromptHead(nn.Module):
     '''Backbone
     '''
-    def __init__(self, cls_num:int, input_c:int, clip_embedding_c:int, kernel_s:list[int], mid_c:list[int], clip_model, add_share_head=True):
+    def __init__(self, cls_num:int, input_c:int, clip_embedding_c:int, kernel_s:list[int], mid_c:list[int], clip:dict, add_share_head=True):
         '''网络初始化
 
         Args:
@@ -40,8 +40,8 @@ class LPromptHead(nn.Module):
 
         '''网络组件'''
         # CLIPModel定义为全局变量, 而不是类成员
-        global CLIPModel
-        CLIPModel = clip_model
+        # CLIP
+        self.CLIPModel = CLIP.Model(backbone_name='ViT-L', **clip)
         # 特征提取
         if add_share_head:
             self.share_head = nn.Sequential(
@@ -64,7 +64,6 @@ class LPromptHead(nn.Module):
             nn.BatchNorm1d(clip_embedding_c*2),
             nn.Linear(clip_embedding_c*2, 1),
         )
-        self.l_prompts = nn.Parameter(CLIPModel.prompts_embeddings_val.float())
         # 权重初始化
         init_weights(self.share_head, 'normal', 0, 0.01)
         init_weights(self.cls_head, 'normal', 0, 0.01)
@@ -98,14 +97,14 @@ class LPromptHead(nn.Module):
         contrast_label = torch.arange(0, bs).to(combined_x.device)
         contrast_loss = self.contrastLoss(x_embeddings, contrast_x_embeddings, contrast_label)
         '''蒸馏损失'''
-        prompts_token_train = CLIPModel.genTrainLabel()
-        img_embeddings, text_embeddings = CLIPModel.forward(batch_clip_imgs, prompts_token_train)
+        prompts_token_train = self.CLIPModel.genTrainLabel()
+        img_embeddings, text_embeddings = self.CLIPModel.forward(batch_clip_imgs, prompts_token_train)
         img_embeddings = img_embeddings.float()
         text_embeddings = text_embeddings.float()
         distill_loss = self.distillLoss(x_embeddings, img_embeddings)
         '''图文匹配对比损失'''
         batch_labels = batch_combined_labels[:bs]
-        img_text_contrast_loss = self.contrastLoss(x_embeddings, text_embeddings, batch_labels)
+        img_text_contrast_loss = self.contrastLoss(combined_x_embeddings, text_embeddings, batch_combined_labels)
         '''可学习prompts对比损失'''
         img_lp_contrast_loss = self.contrastLoss(combined_x_embeddings, self.l_prompts, batch_combined_labels)
         '''可学习动态阈值的损失'''

@@ -18,7 +18,7 @@ class Model(nn.Module):
     '''完整FasterRCNN网络架构
     '''
 
-    def __init__(self, cls_num, cls_name, backbone_name, loadckpt, backbone:dict, head:dict, clip:dict, infer_mode='cls'):
+    def __init__(self, cls_num, cls_name, backbone_name, loadckpt, backbone:dict, head:dict, CLIP, infer_mode='cls'):
         super(Model, self).__init__()
         self.infer_mode = infer_mode
         self.cat_nums = cls_num
@@ -41,11 +41,11 @@ class Model(nn.Module):
             'cspresnext50.ra_in1k':                       2048,
             'efficientvit_m5.r224_in1k':                  384,
             }[backbone_name]
-        
+
         '''网络组件'''
         # CLIPModel定义为全局变量, 而不是类成员
         global CLIPModel
-        CLIPModel = CLIP.Model(backbone_name='ViT-L', **clip)
+        CLIPModel = CLIP
         # Backbone最好使用原来的预训练权重初始化
         self.backbone = Backbone(backbone_name=backbone_name, **backbone)
         # self.head = LPromptHead(cls_num=self.cat_nums, input_c=input_c, clip_model=CLIPModel, **head)
@@ -58,7 +58,7 @@ class Model(nn.Module):
             # 基于尺寸的匹配方式(能克服局部模块改名加载不了的问题)
             self = loadWeightsBySizeMatching(self, loadckpt)
 
-    
+        '''冻结, 当只微调头时'''
         # for param in self.backbone.parameters():
         #     param.requires_grad_(False)
         # for param in self.head.share_head.parameters():
@@ -131,6 +131,7 @@ class Model(nn.Module):
             # img_logits = COSSim(embeddings, self.head.l_prompts)
             # logits = img_logits.softmax(dim=-1)
             output = logits.cpu().detach()
+            # print(output.shape)
         return output
 
 

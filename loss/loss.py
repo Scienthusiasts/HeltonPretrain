@@ -75,7 +75,7 @@ class SoftTripleLoss(nn.Module):
     
     '''
     def __init__(self, dim, cN, K=10, la=20, gamma=0.1, tau=0.2, margin=0.01):
-        super(SoftTriple, self).__init__()
+        super(SoftTripleLoss, self).__init__()
         self.la = la
         self.gamma = 1./gamma
         self.tau = tau

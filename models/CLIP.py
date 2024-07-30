@@ -15,9 +15,10 @@ class Model(nn.Module):
     '''完整FasterRCNN网络架构
     '''
     # backbone_name no used, but must kept
-    def __init__(self, backbone_name, cls_names, prompts_template_train, prompts_template_val, weight_path):
+    def __init__(self, device, backbone_name, cls_names, prompts_template_train, prompts_template_val, weight_path):
         super(Model, self).__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # 这里还有点奇怪, 如果不使用.to(self.device)就还是在cpu上推理
+        self.device = device
         # 类别
         self.cls_name = cls_names
         self.cls_num = len(self.cls_name)

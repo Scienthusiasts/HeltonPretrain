@@ -6,13 +6,15 @@ import shutil
 import numpy as np
 from tqdm import tqdm
 import torch.backends.cudnn as cudnn
+# 多卡并行训练:
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 # 自定义模块
 from utils.utils import *
 from utils.metricsUtils import *
 from utils.runnerUtils import *
 from utils.exportUtils import torchExportOnnx, onnxInferenceSingleImg, onnxInferenceBatchImgs
-
 
 
 
@@ -73,24 +75,46 @@ class Runner():
         self.eval_interval = eval_interval
         '''GPU/CPU'''
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # NOTE:多卡:
+        if self.mode=='train_ddp':
+            dist.init_process_group('nccl')
+            self.local_rank = dist.get_rank()
+
         '''日志模块'''
-        if mode in ['train', 'eval']:
+        if mode in ['train', 'train_ddp', 'eval']:
             self.logger, self.log_dir, self.log_save_path = myLogger(self.mode, self.log_dir)
             '''训练/验证时参数记录模块'''
             json_save_dir, _ = os.path.split(self.log_save_path)
-            self.argsHistory = ArgsHistory(json_save_dir)
+            self.argsHistory = ArgsHistory(json_save_dir, self.mode)
         '''导入数据集'''
-        if self.mode not in ['test', 'export']:
-            self.train_data, self.train_data_loader, self.val_data, self.val_data_loader = loadDatasets(mode=self.mode, **dataset)
+        if self.mode in ['train', 'train_ddp', 'eval']:
+            self.train_data, self.train_data_loader, self.val_data, self.val_data_loader = loadDatasets(mode=self.mode, seed=self.seed, **dataset)
+
         '''导入网络'''
-        # 根据模型名称动态导入模块
-        self.model = dynamic_import_class(model.pop('path'), 'Model')(**model).to(self.device)
-        # torch.save(self.model.half().state_dict(), "./last_fp16.pt")
         cudnn.benchmark = True
-            
+        # 根据模型名称动态导入模块
+        if self.mode=='train':
+            CLIPModel = dynamic_import_class(model.pop('clip_path'), 'Model')(**model.pop('clip'), device=self.device).to(self.device)
+        # NOTE:多卡:
+        if self.mode=='train_ddp':
+            CLIPModel = dynamic_import_class(model.pop('clip_path'), 'Model')(**model.pop('clip'), device=self.local_rank)
+            CLIPModel = nn.parallel.DistributedDataParallel(CLIPModel.cuda(self.local_rank), device_ids=[self.local_rank], find_unused_parameters=True)
+            # 多卡时同步BN
+            CLIPModel = torch.nn.SyncBatchNorm.convert_sync_batchnorm(CLIPModel)
+
+        if self.mode=='train':
+            self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel).to(self.device)
+        # NOTE:多卡:
+        if self.mode=='train_ddp':
+            self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel.module)
+            self.model = nn.parallel.DistributedDataParallel(self.model.cuda(self.local_rank), device_ids=[self.local_rank], find_unused_parameters=True)
+            # 多卡时同步BN
+            self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+
 
         '''定义优化器(自适应学习率的带动量梯度下降方法)'''
-        if mode == 'train':
+        # NOTE: 多卡
+        if mode in ['train', 'train_ddp']:
             self.optimizer, self.scheduler = optimSheduler(**optimizer, 
                                                            model=self.model, 
                                                            total_epoch=self.epoch, 
@@ -100,9 +124,10 @@ class Runner():
         if self.resume and self.mode=='train':
             trainResume(self.resume, self.model, self.optimizer, self.logger, self.argsHistory)
         '''打印训练参数'''
-        if self.mode not in ['test', 'export']:
+        # NOTE:多卡:
+        if self.mode in ['train', 'eval'] or (self.mode=='train_ddp' and dist.get_rank() == 0):
             val_data_len = self.val_data.__len__()
-            train_data_len = self.train_data.__len__() if self.mode=='train' else 0
+            train_data_len = self.train_data.__len__() if self.mode in ['train', 'train_ddp'] else 0
             printRunnerArgs(
                 backbone_name=model['backbone_name'], 
                 mode=self.mode, 
@@ -133,8 +158,12 @@ class Runner():
             - losses:      所有损失组成的列表
             - total_loss:  所有损失之和
         '''
-        # 一个batch的前向传播+计算损失
-        losses = self.model.batchLoss(self.device, batch_datas)
+        # 一个batch的前向传播+计算损失 
+        # NOTE:多卡
+        if self.mode=='train_ddp':
+            losses = self.model.module.batchLoss(self.local_rank, batch_datas)
+        else:
+            losses = self.model.batchLoss(self.device, batch_datas)
         # 将上一次迭代计算的梯度清零
         self.optimizer.zero_grad()
         # 反向传播
@@ -153,21 +182,27 @@ class Runner():
         '''
         self.model.train()
         train_batch_num = len(self.train_data_loader)
+        # NOTE:多卡
+        # 通过维持各个进程之间的相同随机数种子使不同进程能获得同样的shuffle效果
+        if self.mode=='train_ddp':
+            self.train_data_loader.sampler.set_epoch(epoch)
         for step, batch_datas in enumerate(self.train_data_loader):
             '''一个batch的训练, 并得到损失'''
             losses = self.fitBatch(step, train_batch_num, epoch, batch_datas)
-            '''打印日志'''
-            printLog(
-                mode='train', 
-                log_interval=self.log_interval, 
-                logger=self.logger, 
-                optimizer=self.optimizer, 
-                step=step, 
-                epoch=epoch, 
-                batch_num=train_batch_num, 
-                losses=losses)
-            '''记录变量(loss, lr等, 每个iter都记录)'''
-            recoardArgs(mode='train', optimizer=self.optimizer, argsHistory=self.argsHistory, loss=losses)
+            # NOTE:多卡
+            if self.mode=='train' or (self.mode=='train_ddp' and dist.get_rank() == 0):
+                '''打印日志'''
+                printLog(
+                    mode='train', 
+                    log_interval=self.log_interval, 
+                    logger=self.logger, 
+                    optimizer=self.optimizer, 
+                    step=step, 
+                    epoch=epoch, 
+                    batch_num=train_batch_num, 
+                    losses=losses)
+                '''记录变量(loss, lr等, 每个iter都记录)'''
+                recoardArgs(mode='train', optimizer=self.optimizer, argsHistory=self.argsHistory, loss=losses)
 
 
 
@@ -183,7 +218,8 @@ class Runner():
             self.model = loadWeightsBySizeMatching(self.model, ckpt_path)
         if half:
             self.model.half()
-        self.model.eval()
+        
+        self.model.module.eval() if is_parallel(self.model) else self.model.eval()
         # 记录真实标签和预测标签
         pred_list, true_list, soft_list = [], [], []
         # 验证时无需计算梯度
@@ -222,7 +258,10 @@ class Runner():
         # 半精度推理时数据也得是半精度
         if half: batch_datas = [datas.half() for datas in batch_datas]
         '''一个batch的评估, 并得到batch的评估指标'''
-        pred, true, soft = self.model.batchVal(self.device, batch_datas)
+        if is_parallel(self.model):
+            pred, true, soft = self.model.module.batchVal(self.device, batch_datas)
+        else:
+            pred, true, soft = self.model.batchVal(self.device, batch_datas)
         return pred, true, soft
 
 
@@ -233,15 +272,24 @@ class Runner():
         for epoch in range(self.start_epoch, self.epoch):
             '''一个epoch的训练'''
             self.fitEpoch(epoch)
-            '''以json格式保存args'''
-            self.argsHistory.saveRecord()
-            '''一个epoch的验证'''
-            self.evaler(epoch)
-            if epoch % self.eval_interval == 0 and (epoch!=0 or self.eval_interval==1):
-                '''打印日志(一个epoch结束)'''
-                printLog(mode='epoch', logger=self.logger, argsHistory=self.argsHistory, step=0, epoch=epoch)
-                '''保存网络权重(一个epoch结束)'''
-                saveCkpt(epoch, self.model, self.optimizer, self.scheduler, self.log_dir, self.argsHistory, self.logger)
+            # 同步所有进程确保训练完全完成(类似阻塞)
+            if self.mode=='train_ddp':dist.barrier()
+            # NOTE:多卡
+            if self.mode=='train' or (self.mode=='train_ddp' and dist.get_rank() == 0):
+                '''以json格式保存args'''
+                self.argsHistory.saveRecord()
+                '''一个epoch的验证'''
+                self.evaler(epoch)
+                if epoch % self.eval_interval == 0 and (epoch!=0 or self.eval_interval==1):
+                    '''打印日志(一个epoch结束)'''
+                    printLog(mode='epoch', logger=self.logger, argsHistory=self.argsHistory, step=0, epoch=epoch)
+                    '''保存网络权重(一个epoch结束)'''
+                    saveCkpt(epoch, self.model, self.optimizer, self.scheduler, self.log_dir, self.argsHistory, self.logger)
+
+            # 可以考虑在此处再次同步，确保主进程的评估和日志记录不会被后续的训练步骤干扰(类似阻塞)
+            if self.mode=='train_ddp':dist.barrier()
+
+
 
 
 
@@ -339,7 +387,7 @@ if __name__ == '__main__':
 
     runner = Runner(**runner_config)
     # 训练模式
-    if runner_config['mode'] == 'train':
+    if runner_config['mode'] in ['train', 'train_ddp']:
         # 拷贝一份当前训练对应的config文件(方便之后查看细节)
         shutil.copy(config_path, os.path.join(runner.log_dir, 'config.py'))
         runner.trainer()
@@ -352,4 +400,4 @@ if __name__ == '__main__':
     elif runner_config['mode'] == 'export':
         runner.exporter(**export_config)
     else:
-        print("mode not valid. it must be 'train', 'eval', 'test' or 'export'.")
+        print("mode not valid. it must be 'train', 'train_ddp', 'eval', 'test' or 'export'.")

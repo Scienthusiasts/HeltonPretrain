@@ -3,18 +3,19 @@ import os
 import json
 import torch
 import logging
-from logging import Logger
 import datetime
 import argparse
-import numpy as np
 from torch import nn
-from PIL import Image
-from tqdm import tqdm
+from logging import Logger
 import torch.optim as optim
-import torch.backends.cudnn as cudnn
+from functools import partial
 from torch.utils.data import DataLoader
 from timm.scheduler import CosineLRScheduler
 from torch.utils.tensorboard import SummaryWriter
+# 多卡并行训练:
+import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 # 自定义模块
 from utils.utils import *
@@ -30,6 +31,9 @@ def getArgs():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--config', type=str, help='config file')
+    # NOTE:多卡
+    parser.add_argument("--local_rank", default=-1, type=int)
+    parser.add_argument('--n_gpus', default=1, type=int)
     args = parser.parse_args()
     return args
 
@@ -42,9 +46,11 @@ def getArgs():
 class ArgsHistory():
     '''记录train或val过程中的一些变量(比如 loss, lr等) 以及tensorboard
     '''
-    def __init__(self, json_save_dir):
-        # tensorboard 对象
-        self.tb_writer = SummaryWriter(log_dir=json_save_dir)
+    def __init__(self, json_save_dir, mode):
+        # NOTE:多卡
+        if mode in ['train', 'eval'] or (mode=='train_ddp' and dist.get_rank() == 0):
+            # tensorboard 对象
+            self.tb_writer = SummaryWriter(log_dir=json_save_dir)
         self.json_save_dir = json_save_dir
         self.args_history_dict = {}
 
@@ -106,7 +112,7 @@ def myLogger(mode:str, log_dir:str):
     # 日志格式
     formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s')
 
-    if mode == 'train':
+    if mode in ['train', 'train_ddp']:
         # 写入文件的日志
         log_dir = os.path.join(log_dir, f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}_train")
         # 日志文件保存路径
@@ -117,15 +123,21 @@ def myLogger(mode:str, log_dir:str):
             # 日志文件保存路径
         log_save_path = os.path.join(log_dir, f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}_val.log")
     if not os.path.isdir(log_dir):os.makedirs(log_dir)
-    file_handler = logging.FileHandler(log_save_path, encoding="utf-8", mode="a")
-    file_handler.setLevel(level=logging.INFO)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    # 终端输出的日志
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
+    # NOTE:多卡
+    # 只在 local_rank 为 0 的进程中设置日志记录
+    if mode == 'train' or (mode == 'train_ddp' and dist.get_rank() == 0):
+        file_handler = logging.FileHandler(log_save_path, encoding="utf-8", mode="a")
+        file_handler.setLevel(level=logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        # 终端输出的日志
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.INFO)
+        stream_handler.setFormatter(formatter)
+        # logger.addHandler(stream_handler)
+    # 对于非主进程，可以设置一个空的日志处理器来忽略日志记录
+    else:
+        logger.addHandler(logging.NullHandler())
     return logger, log_dir, log_save_path
     
     
@@ -227,7 +239,7 @@ def printLog(
 
 
 
-def loadDatasets(mode:str, bs:int, num_workers:int, my_dataset:dict):
+def loadDatasets(mode:str, seed:int, bs:int, num_workers:int, my_dataset:dict):
     '''导入数据集
         Args:
             - mode:        当前模式(train/eval)
@@ -250,17 +262,33 @@ def loadDatasets(mode:str, bs:int, num_workers:int, my_dataset:dict):
         from datasets.ClassifyDataset import ClsDataset
 
 
-    # 导入验证集
+    '''导入验证集'''
     # 固定每个方法里都有一个COCODataset
     val_data = ClsDataset(**my_dataset['val_dataset'])
-    val_data_loader = DataLoader(val_data, shuffle=False, batch_size=bs, num_workers=num_workers, pin_memory=True)   
+    if mode != 'train_ddp':
+        val_data_loader = DataLoader(val_data, shuffle=False, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed))   
+    # NOTE: 多卡 
+    else:
+        val_sampler = DistributedSampler(val_data)
+        val_data_loader = DataLoader(val_data, sampler=val_sampler, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed))   
+
     if mode == 'eval':
         return None, None, val_data, val_data_loader
                 
-    if mode == 'train':
-        # 导入训练集
+    '''导入训练集'''
+    if mode in ['train', 'train_ddp']:
+        # NOTE: 多卡 
+        if mode=='train':
+            rank = 0 
+        else:
+            rank = dist.get_rank()
+
         train_data = ClsDataset(**my_dataset['train_dataset'])
-        train_data_loader = DataLoader(train_data, shuffle=True, batch_size=bs, num_workers=num_workers, pin_memory=True)
+        train_data_loader = DataLoader(train_data, shuffle=True, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed, rank=rank))
+        # NOTE: 多卡
+        if mode == 'train_ddp':
+            train_sampler = DistributedSampler(train_data)
+            train_data_loader = DataLoader(train_data, sampler=train_sampler, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed, rank=rank)) 
         return train_data, train_data_loader, val_data, val_data_loader
     
 
@@ -327,14 +355,14 @@ def printRunnerArgs(
         logger:Logger):
     '''训练前打印基本信息
     '''
-    if mode in ['train', 'eval']:
+    if mode in ['train', 'train_ddp', 'eval']:
         logger.info(f'CPU/CUDA:   {device}')
         logger.info(f'骨干网络: {backbone_name}')
         logger.info(f'全局种子: {seed}')
         logger.info(f'图像大小:   {img_size}')
         logger.info('验证集大小:   %d' % val_data_len)
         logger.info('数据集类别数: %d' % cat_nums)
-        if mode == 'train':
+        if mode in ['train', 'train_ddp']:
             logger.info(f'Batch Size: {bs}')
             logger.info('训练集大小:   %d' % train_data_len)
             logger.info(f'优化器: {optimizer}')
