@@ -22,11 +22,32 @@ class Transforms():
         self.trainTF = A.ReplayCompose([
                 # 随机旋转
                 A.Rotate(limit=15, p=0.5),
-                # 先看下有没效果:
-                # A.VerticalFlip(p=0.5),
-                # A.RandomRotate90(p=0.5),
                 # 随机尺寸裁剪并缩放到固定尺寸
                 A.RandomResizedCrop(imgSize[0], imgSize[1], scale=(0.3, 1), ratio=(0.75, 1.33), p=0.5),
+                # 随机镜像
+                A.HorizontalFlip(p=0.5),
+                # 参数：随机色调、饱和度、值变化
+                A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, always_apply=False, p=0.5),
+                # 随机明亮对比度
+                A.RandomBrightnessContrast(p=0.2),   
+                # 高斯噪声
+                A.GaussNoise(var_limit=(0.05, 0.09), p=0.4),     
+                # 随机转为灰度图
+                A.ToGray(p=0.01),
+                A.OneOf([
+                    # 使用随机大小的内核将运动模糊应用于输入图像
+                    A.MotionBlur(p=0.2),   
+                    # 中值滤波
+                    A.MedianBlur(blur_limit=3, p=0.1),    
+                    # 使用随机大小的内核模糊输入图像
+                    A.Blur(blur_limit=3, p=0.1),  
+                ], p=0.2),
+            ])
+        self.idTF = A.ReplayCompose([
+                # 随机旋转
+                A.Rotate(limit=15, p=0.5),
+                # 随机尺寸裁剪并缩放到固定尺寸
+                A.RandomResizedCrop(imgSize[0], imgSize[1], scale=(0.7, 1), ratio=(0.75, 1.33), p=0.5),
                 # 随机镜像
                 A.HorizontalFlip(p=0.5),
                 # 参数：随机色调、饱和度、值变化

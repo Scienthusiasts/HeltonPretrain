@@ -1,11 +1,12 @@
 
 import os
 # train eval test export
-MODE = 'test'
+MODE = 'train'
 CLIPWEIGHT = "F:/DeskTop/git/HeltonPretrain/ckpt/CLIP_ViT-L-14.pt"
 FROZEBACKBONE = True
 RESUME = False
 IMGSIZE = [224, 224]
+id_dir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/DogFace/after_4_bis'
 
 '''mobilenetv3_large_100:'''
 # BACKBONEPATH = f'ckpt/mobilenetv3_large_100.ra_in1k.pt'; MIDC = [768, 768, 768]; KERNELS = [1, 1, 1]; BACKBONENAME = 'mobilenetv3_large_100.ra_in1k'
@@ -144,25 +145,26 @@ runner = dict(
     img_size = IMGSIZE,
     epoch = 12*4+1,
     log_dir = './log/mobilenetv3_large_100_food101',
-    log_interval = 50,
+    log_interval = 1,
     eval_interval = 1,
     class_names = cat_names, 
 
     dataset = dict(
-        bs = 8*12,
+        bs = 8*8,
         num_workers = 2,
         # 自定义的Dataset:
         my_dataset = dict(
-            path = 'datasets/ClassifyDataset.py',
-            train_dataset = dict(
+            cls_dataset = dict(
                 mode='train',
-                contrast=True,
                 imgSize = IMGSIZE,
                 dir = img_dir,
             ),
+            id_dataset = dict(
+                imgSize = IMGSIZE,
+                dir = id_dir,
+            ),
             val_dataset = dict(
                 mode='valid',
-                contrast=False,
                 imgSize = IMGSIZE,
                 dir = img_dir,                
             ),
@@ -171,6 +173,7 @@ runner = dict(
 
 
     model = dict(
+        clip_path = 'models/CLIP.py',
         path = 'models/CLIPDistillClsNet/CLIPDistillClsNet.py',
         # cls clip ensemble
         infer_mode= 'ensemble',
@@ -190,6 +193,7 @@ runner = dict(
             clip_embedding_c = 768,
         ),
         clip = dict(
+            backbone_name='ViT-L',
             cls_names = cat_names,
             prompts_template_train = prompts_template_train,
             prompts_template_val = prompts_template_val,

@@ -24,7 +24,11 @@ class Model(nn.Module):
         self.cls_num = len(self.cls_name)
         # model
         self.clip_model, self.preprocess = clip.load(weight_path, device=self.device)
+
         self.prompts_template_train = prompts_template_train
+        self.prompts_token_train = self.genTrainLabel()
+        self.prompts_embeddings_train = self.clip_model.encode_text(self.prompts_token_train)
+
         self.prompts_template_val = prompts_template_val
         self.prompts_token_val = self.genValLabel()
         self.prompts_embeddings_val = self.clip_model.encode_text(self.prompts_token_val)

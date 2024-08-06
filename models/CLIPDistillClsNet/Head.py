@@ -33,7 +33,7 @@ class Head(nn.Module):
         '''损失函数'''
         self.clsLoss = nn.CrossEntropyLoss()
         self.contrastLoss = InfoNCELoss()
-        self.tripletLoss = TripleLoss(margin=1, p=2)
+        self.tripleLoss = TripleLoss(margin=1, p=2)
         self.distillLoss = nn.SmoothL1Loss()
         # 针对可学习动态阈值设定的损失
         self.TMarginLoss = ThresholdMarginLoss()
@@ -82,12 +82,63 @@ class Head(nn.Module):
         cls_logits = self.cls_head(x)
         embeddings = self.clip_head(x)
         return cls_logits, embeddings
-    
+
+
+    def forward_shared(self, x:torch.tensor):
+        '''共享层前向传播
+        '''
+        x = self.share_head(x)
+        x = self.gap(x)
+        x = x.reshape(x.shape[0], -1)
+        return x
+
+
+    def batchLoss(self, combined_x, combined_clip_imgs, batch_labels):
+        # combined_x = [batch_imgs, anchor_imgs, pos_imgs, neg_imgs]
+        # combined_clip_imgs = [batch_clip_imgs, anchor_imgs, pos_imgs, neg_imgs]
+        bs = combined_clip_imgs.shape[0] // 4
+        # 先经过共享头进一步提取特征
+        combined_x_feature = self.forward_shared(combined_x)
+        # 经过编码头提取编码特征
+        combined_embeddings = self.clip_head(combined_x_feature)
+        # 经过分类头提取分类特征
+        cls_logits = self.cls_head(combined_x_feature[:bs])
+        img_embeddings, anchor_embeddings, pos_embeddings, neg_embeddings = torch.split(combined_embeddings, bs, dim=0)
+        # clip图像编码
+        combined_clip_embeddings = CLIPModel.forwardImg(combined_clip_imgs)
+
+        '''常规分类损失'''
+        cls_loss = self.clsLoss(cls_logits, batch_labels)
+        '''对比损失'''
+        contrast_loss = self.tripleLoss(anchor_embeddings, pos_embeddings, neg_embeddings)
+        '''蒸馏损失'''
+        distill_loss = self.distillLoss(combined_embeddings, combined_clip_embeddings)
+        '''图文匹配对比损失'''
+        img_text_contrast_loss = self.contrastLoss(img_embeddings, CLIPModel.prompts_embeddings_train.float().detach(), batch_labels)
+        '''总损失'''
+        total_loss = cls_loss + contrast_loss + distill_loss * 100 + img_text_contrast_loss
+        '''损失以字典形式组织'''
+        loss = dict(
+            total_loss = total_loss,
+            cls_loss = cls_loss,
+            contrast_loss = contrast_loss,
+            distill_loss = distill_loss,
+            img_text_contrast_loss = img_text_contrast_loss,
+        )
+        return loss
 
 
 
-    def batchLoss(self, combined_x, batch_clip_imgs, batch_combined_labels):
-        bs = combined_x.shape[0] // 2
+
+
+
+
+
+
+
+
+    def batchLoss_(self, combined_x, combined_clip_imgs, batch_labels):
+        bs = combined_clip_imgs.shape[0] // 4
         # 前向
         combined_x_cls_logits, combined_x_embeddings = self.forward(combined_x)
         '''常规分类损失'''
@@ -152,7 +203,6 @@ class Head(nn.Module):
             # id_classify_loss = id_classify_loss,
         )
         return loss
-
 
 
 

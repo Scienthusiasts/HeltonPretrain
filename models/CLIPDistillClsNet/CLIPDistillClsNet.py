@@ -81,18 +81,20 @@ class Model(nn.Module):
     
 
 
-    def batchLoss(self, device, batch_datas):
-        batch_imgs, batch_clip_imgs, batch_contrast_imgs, batch_labels = \
-            batch_datas[0].to(device), \
-            batch_datas[1].to(device), \
-            batch_datas[2].to(device), \
-            batch_datas[3].to(device).reshape(-1)
+    def batchLoss(self, device, batch_datas, id_batch_datas):
+        
+        batch_imgs = batch_datas[0].to(device) 
+        batch_clip_imgs = batch_datas[1].to(device) 
+        batch_labels = batch_datas[2].to(device).reshape(-1)
+        anchor_imgs = id_batch_datas[0].to(device)
+        pos_imgs = id_batch_datas[1].to(device)
+        neg_imgs = id_batch_datas[2].to(device)
         # 将原始图像batch和对比学习图像batchcat在一起
-        batch_combined_imgs = torch.cat([batch_imgs, batch_contrast_imgs], dim=0)
-        batch_combined_labels = torch.cat([batch_labels, batch_labels], dim=0)
+        batch_combined_imgs = torch.cat([batch_imgs, anchor_imgs, pos_imgs, neg_imgs], dim=0)
+        clip_combined_imgs = torch.cat([batch_clip_imgs, anchor_imgs, pos_imgs, neg_imgs], dim=0)
         # 提取图像特征
         backbone_combined_feat = self.backbone(batch_combined_imgs)
-        loss = self.head.batchLoss(backbone_combined_feat, batch_clip_imgs, batch_combined_labels)
+        loss = self.head.batchLoss(backbone_combined_feat, clip_combined_imgs, batch_labels)
         return loss
 
 

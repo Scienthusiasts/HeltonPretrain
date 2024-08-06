@@ -120,12 +120,7 @@ class TripleLoss(nn.Module):
     def __init__(self, margin, p):
         super(TripleLoss, self,).__init__()
         self.loss = nn.TripletMarginLoss(margin=margin, p=p)
-    def forward(self, x, contrast_x):
-        # 生成一个随机排列的索引
-        shuffle_idx = torch.randperm(x.shape[0])
-        anchor = x
-        pos = contrast_x
-        neg = contrast_x[shuffle_idx]
+    def forward(self, anchor, pos, neg):
         loss = self.loss(anchor, pos, neg)
         return loss
     

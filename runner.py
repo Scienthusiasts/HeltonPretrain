@@ -70,6 +70,11 @@ class Runner():
         self.cat_nums = len(class_names)
         self.img_size = img_size
         self.epoch = epoch
+        # id datasets采用迭代的方式, 需要下面这些标记
+        self.id_epoch = 1
+        self.id_cur_iter = 0
+        self.id_batch = None
+
         self.log_dir = log_dir
         self.log_interval = log_interval
         self.eval_interval = eval_interval
@@ -88,13 +93,18 @@ class Runner():
             self.argsHistory = ArgsHistory(json_save_dir, self.mode)
         '''导入数据集'''
         if self.mode in ['train', 'train_ddp', 'eval']:
-            self.train_data, self.train_data_loader, self.val_data, self.val_data_loader = loadDatasets(mode=self.mode, seed=self.seed, **dataset)
+            self.train_data, \
+            self.train_data_loader, \
+            self.id_data, \
+            self.id_data_loader, \
+            self.val_data, \
+            self.val_data_loader = loadDatasets(mode=self.mode, seed=self.seed, **dataset)
 
         '''导入网络'''
         cudnn.benchmark = True
         # 根据模型名称动态导入模块
-        if self.mode=='train':
-            CLIPModel = dynamic_import_class(model.pop('clip_path'), 'Model')(**model.pop('clip'), device=self.device).to(self.device)
+
+        CLIPModel = dynamic_import_class(model.pop('clip_path'), 'Model')(**model.pop('clip'), device=self.device).to(self.device)
         # NOTE:多卡:
         if self.mode=='train_ddp':
             CLIPModel = dynamic_import_class(model.pop('clip_path'), 'Model')(**model.pop('clip'), device=self.local_rank)
@@ -102,11 +112,10 @@ class Runner():
             # 多卡时同步BN
             CLIPModel = torch.nn.SyncBatchNorm.convert_sync_batchnorm(CLIPModel)
 
-        if self.mode=='train':
-            self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel).to(self.device)
+        self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel.eval()).to(self.device)
         # NOTE:多卡:
         if self.mode=='train_ddp':
-            self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel.module)
+            self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel.module.eval())
             self.model = nn.parallel.DistributedDataParallel(self.model.cuda(self.local_rank), device_ids=[self.local_rank], find_unused_parameters=True)
             # 多卡时同步BN
             self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
@@ -128,9 +137,11 @@ class Runner():
         if self.mode in ['train', 'eval'] or (self.mode=='train_ddp' and dist.get_rank() == 0):
             val_data_len = self.val_data.__len__()
             train_data_len = self.train_data.__len__() if self.mode in ['train', 'train_ddp'] else 0
+            id_data_len = self.id_data.__len__() if self.mode in ['train', 'train_ddp'] else 0
             printRunnerArgs(
                 backbone_name=model['backbone_name'], 
                 mode=self.mode, 
+                id_data_len = id_data_len,
                 logger=self.logger, 
                 device=self.device, 
                 seed=self.seed, 
@@ -158,12 +169,17 @@ class Runner():
             - losses:      所有损失组成的列表
             - total_loss:  所有损失之和
         '''
+        id_batch_datas, \
+        self.id_batch, \
+        self.id_epoch, \
+        self.id_cur_iter = iterDataLoader(self.id_batch, self.id_data_loader, self.id_epoch, self.id_cur_iter)
+        self.id_cur_iter += 1
         # 一个batch的前向传播+计算损失 
         # NOTE:多卡
         if self.mode=='train_ddp':
-            losses = self.model.module.batchLoss(self.local_rank, batch_datas)
+            losses = self.model.module.batchLoss(self.local_rank, batch_datas, id_batch_datas)
         else:
-            losses = self.model.batchLoss(self.device, batch_datas)
+            losses = self.model.batchLoss(self.device, batch_datas, id_batch_datas)
         # 将上一次迭代计算的梯度清零
         self.optimizer.zero_grad()
         # 反向传播
@@ -182,15 +198,18 @@ class Runner():
         '''
         self.model.train()
         train_batch_num = len(self.train_data_loader)
+        id_batch_num = len(self.id_data_loader)
         # NOTE:多卡
         # 通过维持各个进程之间的相同随机数种子使不同进程能获得同样的shuffle效果
         if self.mode=='train_ddp':
-            self.train_data_loader.sampler.set_epoch(epoch)
+            self.train_data_loader.sampler.set_epoch(self.epoch)
+            self.id_data_loader.sampler.set_epoch(self.id_epoch)
         for step, batch_datas in enumerate(self.train_data_loader):
             '''一个batch的训练, 并得到损失'''
             losses = self.fitBatch(step, train_batch_num, epoch, batch_datas)
             # NOTE:多卡
             if self.mode=='train' or (self.mode=='train_ddp' and dist.get_rank() == 0):
+                print(self.id_epoch, self.id_cur_iter, id_batch_num)
                 '''打印日志'''
                 printLog(
                     mode='train', 
@@ -199,6 +218,9 @@ class Runner():
                     optimizer=self.optimizer, 
                     step=step, 
                     epoch=epoch, 
+                    id_epoch=self.id_epoch,
+                    id_iter=self.id_cur_iter,
+                    id_batch_num=id_batch_num,
                     batch_num=train_batch_num, 
                     losses=losses)
                 '''记录变量(loss, lr等, 每个iter都记录)'''

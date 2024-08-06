@@ -190,6 +190,9 @@ def printLog(
         logger:Logger,
         step:int, 
         epoch:int, 
+        id_epoch:int=None,
+        id_iter:int=None,
+        id_batch_num:int=None,
         log_interval:int=None,
         optimizer:optim=None,
         argsHistory:ArgsHistory=None,
@@ -214,8 +217,9 @@ def printLog(
         # 每间隔log_interval个iter才打印一次
         if step % log_interval == 0 and mode == 'train':
             # 右对齐, 打印更美观
+            id_idx = '{:>{}}'.format(id_iter, len(f"{id_batch_num}"))
             batch_idx = '{:>{}}'.format(step, len(f"{batch_num}"))
-            log = ("Epoch(train)  [%d][%s/%d]  lr: %8f  ") % (epoch+1, batch_idx, batch_num, optimizer.param_groups[0]['lr'])
+            log = ("Epoch(train) [%d][%s/%d]  ID [%d][%s/%d]  lr: %8f  ") % (epoch+1, batch_idx, batch_num, id_epoch, id_idx, id_batch_num, optimizer.param_groups[0]['lr'])
             for loss_name, loss_value in losses.items():
                 loss_log = (loss_name+": %.5f  " % (loss_value.item()))
                 log += loss_log
@@ -255,11 +259,9 @@ def loadDatasets(mode:str, seed:int, bs:int, num_workers:int, my_dataset:dict):
     ''' 
     # 动态导入机制和多进程存在冲突, 因此不能动态导入
     # COCODataset = dynamic_import_class(my_dataset['path'], 'COCODataset')
-    
-    dataset_type = my_dataset['path'].split('/')[-1][:-3]
     # 退而求其次, 用判断条件动态的导入
-    if dataset_type == 'ClassifyDataset':
-        from datasets.ClassifyDataset import ClsDataset
+    from datasets.ClassifyDataset import ClsDataset
+    from datasets.IDDataset import IDDataset
 
 
     '''导入验证集'''
@@ -273,7 +275,7 @@ def loadDatasets(mode:str, seed:int, bs:int, num_workers:int, my_dataset:dict):
         val_data_loader = DataLoader(val_data, sampler=val_sampler, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed))   
 
     if mode == 'eval':
-        return None, None, val_data, val_data_loader
+        return None, None, None, None, val_data, val_data_loader
                 
     '''导入训练集'''
     if mode in ['train', 'train_ddp']:
@@ -283,14 +285,20 @@ def loadDatasets(mode:str, seed:int, bs:int, num_workers:int, my_dataset:dict):
         else:
             rank = dist.get_rank()
 
-        train_data = ClsDataset(**my_dataset['train_dataset'])
-        train_data_loader = DataLoader(train_data, shuffle=True, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed, rank=rank))
+        cls_data = ClsDataset(**my_dataset['cls_dataset'])
+        cls_data_loader = DataLoader(cls_data, shuffle=True, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed, rank=rank))
+        id_data = IDDataset(**my_dataset['id_dataset'])
+        id_data_loader = DataLoader(id_data, shuffle=True, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(IDDataset.worker_init_fn, seed=seed, rank=rank))
+
         # NOTE: 多卡
         if mode == 'train_ddp':
-            train_sampler = DistributedSampler(train_data)
-            train_data_loader = DataLoader(train_data, sampler=train_sampler, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed, rank=rank)) 
-        return train_data, train_data_loader, val_data, val_data_loader
-    
+            cls_sampler = DistributedSampler(cls_data)
+            cls_data_loader = DataLoader(cls_data, sampler=cls_sampler, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(ClsDataset.worker_init_fn, seed=seed, rank=rank)) 
+            id_sampler = DistributedSampler(id_data)
+            id_data_loader = DataLoader(id_data, sampler=id_sampler, batch_size=bs, num_workers=num_workers, pin_memory=True, worker_init_fn=partial(IDDataset.worker_init_fn, seed=seed, rank=rank)) 
+        return cls_data, cls_data_loader, id_data, id_data_loader, val_data, val_data_loader
+
+
 
 
 
@@ -344,6 +352,7 @@ def saveCkpt(
 def printRunnerArgs(
         backbone_name:str, 
         mode:str, 
+        id_data_len:int,
         device:str, 
         seed:int, 
         bs:int, 
@@ -365,6 +374,7 @@ def printRunnerArgs(
         if mode in ['train', 'train_ddp']:
             logger.info(f'Batch Size: {bs}')
             logger.info('训练集大小:   %d' % train_data_len)
+            logger.info('个体识别数据集大小:   %d' % id_data_len)
             logger.info(f'优化器: {optimizer}')
 
         logger.info('='*150)   
@@ -449,3 +459,41 @@ def optimSheduler(
     )
 
     return optimizer, scheduler
+
+
+
+
+def iterDataLoader(batch, dataloader, cur_epoch, cur_iter):
+    '''半监督训练模式下的数据迭代
+        Args:
+            - batch:      torch的DataLoader的iter实例
+            - dataloader: torch的DataLoader实例
+            - cur_epoch:  DataLoader的数据当前迭代到第几轮
+            - cur_iter:   DataLoader的数据当前迭代到轮内第几个iter
+
+        Returns:
+            - batch_datas: 的DataLoader当前iter的数据
+            - dataloader:  torch的DataLoader实例
+            - cur_epoch:   DataLoader的数据当前迭代到第几轮
+            - cur_iter:   DataLoader的数据当前迭代到轮内第几个iter
+    '''
+    try:
+        batch_datas = next(batch)
+    # TypeError表明刚开始训练batch还没初始化，先初始化
+    except TypeError:
+        # NOTE: 多卡
+        if hasattr(dataloader, 'set_epoch'):
+            dataloader.sampler.set_epoch(cur_epoch)
+        batch = iter(dataloader)
+        batch_datas = next(batch)      
+    # 当前epoch的所有数据迭代完毕, 开启下一轮epoch  
+    except StopIteration:
+        cur_epoch += 1
+        cur_iter = 0
+        # NOTE: 多卡
+        if hasattr(dataloader, 'set_epoch'):
+            dataloader.sampler.set_epoch(cur_epoch)
+        batch = iter(dataloader)
+        batch_datas = next(batch)
+
+    return batch_datas, batch, cur_epoch, cur_iter

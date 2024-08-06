@@ -21,7 +21,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 class ClsDataset(data.Dataset):      
     '''有监督分类任务对应的数据集读取方式
     '''
-    def __init__(self, dir, mode, imgSize, contrast=False):    
+    def __init__(self, dir, mode, imgSize):    
         '''__init__() 为默认构造函数，传入数据集类别（训练或测试），以及数据集路径
 
         Args:
@@ -32,7 +32,6 @@ class ClsDataset(data.Dataset):
         Returns:
             precision, recall
         '''      
-        self.contrast = contrast
         # 记录数据集大小
         self.dataSize = 0      
         # 数据集类别数      
@@ -60,40 +59,14 @@ class ClsDataset(data.Dataset):
     def __getitem__(self, item):  
         '''重载data.Dataset父类方法, 获取数据集中数据内容
         '''   
-        if self.contrast:
-            img1, img2, img3, label = self.getContrastDataByIndex(item)
-            return img1, img2, img3, label
-        else:
-            img, label = self.getDataByIndex(item)
-            return img, label
-
+        img1, img2, label = self.getDataByIndex(item)
+        return img1, img2, label
+    
 
     def getDataByIndex(self, item):
         # 读取图片
         img = Image.open(self.imgPathList[item]).convert('RGB')     
         img = np.array(img)
-        # img = cv2.imread(self.imgPathList[item])
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # 获取image对应的label
-        label = self.labelList[item]                 
-        # 数据预处理/数据增强
-        if self.mode=='train':
-            img, _ = self.trainAlbumAug(img)
-        if self.mode=='valid':
-            img = self.normalAlbumAug(img)           
-        return img.transpose(2,0,1), torch.LongTensor([label])
-    
-
-
-    def getContrastDataByIndex(self, item):
-        # 读取图片
-        try:
-            img = Image.open(self.imgPathList[item]).convert('RGB')     
-            img = np.array(img)
-            # img = cv2.imread(self.imgPathList[item])
-            # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        except:
-            print(self.imgPathList[item])
         # 获取image对应的label
         label = self.labelList[item]                 
         # 数据预处理/数据增强
@@ -103,15 +76,12 @@ class ClsDataset(data.Dataset):
             tranTrans2 = A.ReplayCompose.replay(trainTrans['replay'], image=img)
             # CLIP图像增强(不包含A.CoarseDrop, 其余和原始图像增强完全一致)
             img_clip, _ = self.trainAlbumAug(img, tranTrans2, drop_block=False)
-            # 对比学习分支图像增强(包含A.CoarseDrop)
-            img_contrast, _ = self.trainAlbumAug(img)
-            return img_aug.transpose(2,0,1), img_clip.transpose(2,0,1), img_contrast.transpose(2,0,1), torch.LongTensor([label])
+            return img_aug.transpose(2,0,1), img_clip.transpose(2,0,1), torch.LongTensor([label])
         
         if self.mode=='valid':       
             img = self.normalAlbumAug(img)    
             return img.transpose(2,0,1), torch.LongTensor([label])
     
-
 
     def trainAlbumAug(self, img, trainTrans=None, drop_block=True):
         """基于albumentations库的训练时数据增强
@@ -127,7 +97,6 @@ class ClsDataset(data.Dataset):
         return img, trainTrans
 
 
-
     def normalAlbumAug(self, img):
         """基于albumentations库的基础数据预处理
         """
@@ -137,21 +106,16 @@ class ClsDataset(data.Dataset):
         return img
 
 
-
-
-
-
-
     def __len__(self):
         '''重载data.Dataset父类方法, 返回数据集大小
         '''
         return self.dataSize
     
+
     def get_cls_num(self):
         '''返回数据集类别数
         '''
         return self.labelsNum
-
 
 
     # 设置Dataloader的种子
@@ -163,40 +127,6 @@ class ClsDataset(data.Dataset):
         random.seed(worker_seed)
         np.random.seed(worker_seed)
         torch.manual_seed(worker_seed)
-
-
-
-
-def visBatch(dataLoader, catNames):
-    '''可视化训练集一个batch
-    Args:
-        dataLoader: torch的data.DataLoader
-    Retuens:
-        None     
-    '''
-
-    for step, batch in enumerate(dataLoader):
-        # 只可视化一个batch的图像：
-        if step > 0: break
-        imgs = batch[0]
-        labels = batch[1]
-        # 图像均值
-        mean = np.array([0.485, 0.456, 0.406]) 
-        # 标准差
-        std = np.array([[0.229, 0.224, 0.225]]) 
-        plt.figure(figsize = (8,8))
-        for idx, [img, label] in enumerate(zip(imgs, labels)):
-            img = img.numpy().transpose((1,2,0))
-            img = img * std + mean
-            plt.subplot(8,8,idx+1)
-            plt.imshow(img)
-            plt.title(catNames[label], fontsize=8)
-            plt.axis("off")
-             # 微调行间距
-            plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.97, wspace=0.01, hspace=0.2)
-
-        plt.savefig('./valid_data.jpg', dpi=200)
-
 
 
 
@@ -216,8 +146,8 @@ def visContrastBatch(dataLoader, catNames):
     for step, batch in enumerate(dataLoader):
         # 只可视化一个batch的图像：
         if step > 0: break
-        imgs1, imgs2, imgs3 = batch[0], batch[1], batch[2]
-        labels = batch[3]
+        imgs1, imgs2 = batch[0], batch[1]
+        labels = batch[2]
         # 图像均值
         mean = np.array([0.485, 0.456, 0.406]) 
         # 标准差
@@ -249,18 +179,6 @@ def visContrastBatch(dataLoader, catNames):
         plt.savefig('./clip_aug', dpi=200)
         plt.clf()
 
-        for idx, [img, label] in enumerate(zip(imgs3, labels)):
-            img = img.numpy().transpose((1,2,0))
-            img = img * std + mean
-            plt.subplot(8,8,idx+1)
-            plt.imshow(img)
-            plt.title(catNames[label], fontsize=8)
-            plt.axis("off")
-             # 微调行间距
-            plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.97, wspace=0.01, hspace=0.2)
-
-        plt.savefig('./contrast_aug', dpi=200)
-
 
 
 
@@ -269,7 +187,7 @@ def visContrastBatch(dataLoader, catNames):
 # for test only
 if __name__ == '__main__':
     datasetDir = 'E:/datasets/Classification/HUAWEI_cats_dogs_fine_grained/The_Oxford_IIIT_Pet_Dataset/images'
-    mode = 'valid'
+    mode = 'train'
     bs = 64
     seed = 22
     img_size = [224, 224]
@@ -281,8 +199,7 @@ if __name__ == '__main__':
     # 获取label name
     catNames = sorted(os.listdir(os.path.join(datasetDir, mode)))
     # 可视化一个batch里的图像
-    visBatch(train_data_loader, catNames)
-    # visContrastBatch(train_data_loader, catNames)
+    visContrastBatch(train_data_loader, catNames)
     # 输出数据格式
     for step, batch in enumerate(train_data_loader):
         print(batch[0].shape)
