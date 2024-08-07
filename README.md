@@ -21,4 +21,4 @@
 **update 24/8/7**:
 - 更新华为杯相关内容
 - 创建pretrain++分支, 支持个体识别离线数据集训练逻辑:https://github.com/Scienthusiasts/HeltonPretrain/tree/pretrain%2B%2B
-- 更新了消融实验 `exp/md`
+- 更新了消融实验 `exp.md`
