@@ -37,7 +37,7 @@ class Model(nn.Module):
         '''是否导入预训练权重'''
         if loadckpt: 
             # self.load_state_dict(torch.load(loadckpt))
-            # print('yolov5 pretrain ckpt loaded!')
+            # print('ckpt loaded!')
             # 基于尺寸的匹配方式(能克服局部模块改名加载不了的问题)
             self = loadWeightsBySizeMatching(self, loadckpt)
 

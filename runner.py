@@ -93,7 +93,7 @@ class Runner():
         '''导入网络'''
         cudnn.benchmark = True
         # 根据模型名称动态导入模块
-        if self.mode=='train':
+        if self.mode!='train_ddp':
             CLIPModel = dynamic_import_class(model.pop('clip_path'), 'Model')(**model.pop('clip'), device=self.device).to(self.device)
         # NOTE:多卡:
         if self.mode=='train_ddp':
@@ -102,7 +102,7 @@ class Runner():
             # 多卡时同步BN
             CLIPModel = torch.nn.SyncBatchNorm.convert_sync_batchnorm(CLIPModel)
 
-        if self.mode=='train':
+        if self.mode!='train_ddp':
             self.model = dynamic_import_class(model.pop('path'), 'Model')(**model, CLIP=CLIPModel).to(self.device)
         # NOTE:多卡:
         if self.mode=='train_ddp':
@@ -140,7 +140,7 @@ class Runner():
                 val_data_len=val_data_len, 
                 cat_nums=self.cat_nums, 
                 optimizer=optimizer)
-            # torch.save(self.model.state_dict(), "./tmp.pt")
+        # torch.save(self.model.half().state_dict(), "./_last_half_lp.pt")
 
 
 
@@ -333,19 +333,22 @@ class Runner():
         '''
         from datasets.preprocess import Transforms
         tf = Transforms(imgSize = self.img_size)
+        print(self.img_size)
         # 是否导入预训练权重:
         if ckpt_path:
             self.model.load_state_dict(torch.load(ckpt_path))
+            # self.model = loadWeightsBySizeMatching(self.model, ckpt_path)
         self.model.eval()
         # 是否半精度推理:
         if half: self.model.half()
+        # torch.save(self.model.half().state_dict(), "./_last_half.pt")
 
-        if test_mode == 'clssify_single':
+        if test_mode == 'classify_single':
             if tta:
                 inferenceSingleImgTTA(self.model, self.device, tf, img_path, save_vis_path, half)
             else:
                 inferenceSingleImg(self.model, self.device, tf, img_path, save_vis_path, half)
-        if test_mode == 'clssify_batch':
+        if test_mode == 'classify_batch':
             inferenceBatchImgs(self.model, self.device, tf, img_dir, self.class_names, half, tta)
         elif test_mode == 'identify_all':
             Identify(self.model, self.device, tf, id_img_dir, half)

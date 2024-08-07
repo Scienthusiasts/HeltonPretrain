@@ -5,14 +5,15 @@ import torch.nn as nn
 import importlib
 from tqdm import tqdm, trange
 import random
-from PIL import Image
+from PIL import Image, ImageFile
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import torch.nn.functional as F
 
 from utils.clipUtils import COSSim
 from utils.metricsUtils import *
-
+# 允许加载截断的图像
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 config = {
     "font.family":'Times New Roman',  # 设置字体类型
     "axes.unicode_minus": False #解决负号无法显示的问题
@@ -179,12 +180,12 @@ def visInferResult(image:np.array, logits, sorted_id, cls_name, save_vis_path):
     ax1.imshow(image)
     # ax1.imshow(visualization)
     # 在第二个子图中绘制置信度(横向)
-    ax2.barh(cats_top_10, logits_top_10.reshape(-1))
+    ax2.barh(cats_top_10, logits_top_10.reshape(-1), color='#7FB3D5')
     ax2.set_title('classification')
     ax2.set_xlabel('confidence')
     # 将数值最大的条块设置为不同颜色
     bar2 = ax2.patches[0]
-    bar2.set_color('orange')
+    bar2.set_color('#58D68D')
     # y轴上下反转，不然概率最大的在最下面
     plt.gca().invert_yaxis()
     plt.subplots_adjust(left=0.05, right=0.99, bottom=0.1, top=0.90)
@@ -196,7 +197,7 @@ def visInferResult(image:np.array, logits, sorted_id, cls_name, save_vis_path):
 
 
 
-def inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=False):
+def inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=False, return_name=False):
     '''推理一张图像
     '''
     image = Image.open(img_path).convert('RGB')
@@ -208,7 +209,10 @@ def inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=Fa
     '''是否可视化推理结果'''
     if save_vis_path:
         visInferResult(image, cls_logits, sorted_id, model.cls_name, save_vis_path)
-    return cls_logits, sorted_id
+    if return_name:
+        return model.cls_name[sorted_id[0]]
+    else:
+        return cls_logits, sorted_id
 
 
 
@@ -274,6 +278,58 @@ def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:l
     from torchsummary import summary
     summary(model, input_size=(3,224,224))
     # torch.save(model.half().state_dict(), os.path.join("last_fp16.pt"))
+
+
+
+
+
+
+
+
+
+
+def inferenceBatchImgs(model:nn.Module, device:str, tf, img_dir:str, cat_names:list[str], half=False, tta=False):
+    '''推理图像s
+    '''
+
+    cat_names_dict = dict(zip(cat_names, [i for i in range(len(cat_names))]))
+    # 记录(真实标签true_list, 预测标签pred_list, 置信度soft_list)
+    true_list, pred_list, soft_list = [], [], []
+    for cls_img_dir_name in tqdm(os.listdir(img_dir)):
+        cls_img_dir = os.path.join(img_dir, cls_img_dir_name)
+        for img_name in os.listdir(cls_img_dir):
+            img_path = os.path.join(cls_img_dir, img_name)
+            if tta:
+                logits, sorted_id = inferenceSingleImgTTA(model, device, tf, img_path, save_vis_path=False, half=half)
+            else:
+                logits, sorted_id = inferenceSingleImg(model, device, tf, img_path, save_vis_path=False, half=half)
+            soft_list.append(logits)
+            pred_list.append(sorted_id[0])
+            true_list.append(cat_names_dict[cls_img_dir_name])
+            
+    pred_list = np.array(pred_list)
+    true_list = np.array(true_list)
+    soft_list = np.array(soft_list)
+
+    '''评估'''
+    # 准确率
+    acc = sum(pred_list==true_list) / pred_list.shape[0]
+    # # 可视化混淆矩阵
+    showComMatrix(true_list, pred_list, cat_names, './')
+    # 绘制PR曲线
+    PRs = drawPRCurve(cat_names, true_list, soft_list, './')
+    # 计算每个类别的 AP, F1Score
+    mAP, mF1Score, form = clacAP(PRs, cat_names)
+    print('='*100)
+    print(form)
+    print('='*100)
+    print(f"acc.: {acc} | mAP: {mAP} | mF1Score: {mF1Score}")
+    print('='*100)
+    from torchsummary import summary
+    summary(model, input_size=(3,224,224))
+    # torch.save(model.half().state_dict(), os.path.join("last_fp16.pt"))
+
+
 
 
 
@@ -356,27 +412,25 @@ def identifyPair(model, device, tf, img_pair_paths:list[str], half=False):
     '''计算相似度'''
     sim = COSSim(pair_embeddings[0], pair_embeddings[1]) / 100.
     '''计算动态阈值'''
-    dynamic_T = model.head.lernable_T(torch.cat((pair_embeddings[0], pair_embeddings[1]), dim=1))
-    dynamic_T = F.sigmoid(dynamic_T)
+    # dynamic_T = model.head.lernable_T(torch.cat((pair_embeddings[0], pair_embeddings[1]), dim=1))
+    # dynamic_T = F.sigmoid(dynamic_T)
     # is_pair = sim.item() > dynamic_T.item()
     is_pair = sim.item() > 0.917
 
     '''可视化预测结果'''
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4))
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4))
 
-    fig.suptitle(f"These two samples are {['different', 'the same'][is_pair]} {['identities', 'identity'][is_pair]} | {'sim=%.2f, Td=%.2f'%(sim.item(), dynamic_T.item())}")
-    # 在第一个子图中绘制图像
-    ax1.set_title('sample 1')
-    ax1.axis('off')
-    ax1.imshow(pair_images[0])
-    ax2.set_title('sample 2')
-    ax2.axis('off')
-    ax2.imshow(pair_images[1])
+    # fig.suptitle(f"These two samples are {['different', 'the same'][is_pair]} {['identities', 'identity'][is_pair]} | {'sim=%.2f, Td=%.2f'%(sim.item(), dynamic_T.item())}")
+    # # 在第一个子图中绘制图像
+    # ax1.set_title('sample 1')
+    # ax1.axis('off')
+    # ax1.imshow(pair_images[0])
+    # ax2.set_title('sample 2')
+    # ax2.axis('off')
+    # ax2.imshow(pair_images[1])
     # plt.subplots_adjust(left=0.05, right=0.99, bottom=0.1, top=0.90)
-    plt.savefig('./id_res.jpg', dpi=200)
-
-    print('图像对相似度: ', sim.item(), dynamic_T.item(), is_pair)
-    return 
+    # plt.savefig('./id_res.svg', dpi=200)
+    return is_pair
 
 
 
@@ -425,7 +479,7 @@ def IdentifyByDynamicT(model, device, tf, img_dir, half=False):
     #     dynamic_T[i] = F.sigmoid(model.head.lernable_T(cat_embeddings)).squeeze(1).detach().cpu().numpy()
     # 判别矩阵，如果相似度大于动态阈值，则认为是同一个体
     # judge_M = id_sim > dynamic_T
-    judge_M = id_sim > 0.92
+    judge_M = id_sim > 0.91
     # 获取对角线元素的索引
     indices = torch.arange(judge_M.shape[0])
     # 对角线元素不考虑在内(自己和自己比肯定很像, 意义不大)
@@ -443,4 +497,3 @@ def IdentifyByDynamicT(model, device, tf, img_dir, half=False):
     neg_recall = TN / (TN + FP)
     print(f'acc={acc}\npos_precision={pos_precision}\nneg_precision={neg_precision}\npos_recall={pos_recall}\nneg_recall={neg_recall}')
 
-        

@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 from utils.utils import *
 from utils.clipUtils import COSSim
 from models import CLIP
-from models.CLIPDistillClsNet.Backbone import Backbone
-from models.CLIPDistillClsNet.Head import Head
-from models.CLIPDistillClsNet.LPromptHead import LPromptHead
+from models.DistillClsNet.Backbone import Backbone
+from models.DistillClsNet.LPromptHead import LPromptHead
 
 
 
@@ -18,7 +17,7 @@ class Model(nn.Module):
     '''完整FasterRCNN网络架构
     '''
 
-    def __init__(self, cls_num, cls_name, backbone_name, loadckpt, backbone:dict, head:dict, CLIP, infer_mode='cls'):
+    def __init__(self, cls_num, cls_name, backbone_name, loadckpt, backbone:dict, head:dict, infer_mode='cls'):
         super(Model, self).__init__()
         self.infer_mode = infer_mode
         self.cat_nums = cls_num
@@ -43,32 +42,14 @@ class Model(nn.Module):
             }[backbone_name]
 
         '''网络组件'''
-        # CLIPModel定义为全局变量, 而不是类成员
-        global CLIPModel
-        CLIPModel = CLIP
         # Backbone最好使用原来的预训练权重初始化
         self.backbone = Backbone(backbone_name=backbone_name, **backbone)
-        self.head = LPromptHead(cls_num=self.cat_nums, input_c=input_c, clip_model=CLIPModel, **head)
-        # self.head = Head(cls_num=self.cat_nums, input_c=input_c, clip_model=CLIPModel, **head)
+        self.head = LPromptHead(cls_num=self.cat_nums, input_c=input_c, **head)
         '''是否导入预训练权重'''
         if loadckpt: 
             self.load_state_dict(torch.load(loadckpt))
             print('ckpt loaded!')
-            # 基于尺寸的匹配方式(能克服局部模块改名加载不了的问题)
-            # self = loadWeightsBySizeMatching(self, loadckpt)
 
-        # self.head.l_prompts = nn.Parameter(CLIPModel.prompts_embeddings_val.float())
-        '''冻结, 当只微调头时'''
-        # for param in self.backbone.parameters():
-        #     param.requires_grad_(False)
-        # for param in self.head.share_head.parameters():
-        #     param.requires_grad_(False)
-        # for param in self.head.cls_head.parameters():
-        #     param.requires_grad_(False)
-        # for param in self.head.clip_head.parameters():
-        #     param.requires_grad_(False)
-        # for param in self.head.learnable_T.parameters():
-        #     param.requires_grad_(False)
 
 
 

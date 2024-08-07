@@ -63,7 +63,7 @@ class Head(nn.Module):
         '''可学习动态阈值'''
         # self.lernable_T = nn.Sequential(
         #     nn.BatchNorm1d(clip_embedding_c*2),
-        #     nn.Linear(clip_embedding_c*2, 2),
+        #     nn.Linear(clip_embedding_c*2, 1),
         # )
         # 权重初始化
         init_weights(self.share_head, 'normal', 0, 0.01)
