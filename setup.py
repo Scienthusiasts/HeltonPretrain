@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="heltondl",  # 包名，可随意改
-    version="0.1dev",
+    version="0.1",
     packages=find_packages(include=['models', 'models.*']),
     py_modules=['register'],  # 根目录的单文件模块
     install_requires=[

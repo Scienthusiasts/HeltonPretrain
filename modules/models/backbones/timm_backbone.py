@@ -11,19 +11,19 @@ class TIMMBackbone(nn.Module):
     """通用 TIMM Backbone 模块
 
     """
-    def __init__(self, model_name: str, pretrained=True, out_indices=None, froze_backbone=False, load_ckpt=None):
+    def __init__(self, model_name: str, pretrained=True, out_layers=None, froze_backbone=False, load_ckpt=None):
         """
         Args:
             model_name:     str, timm 中模型名称
             pretrained:     是否加载预训练权重(官方的权重)
             features_only:  是否去掉分类头，仅保留特征提取层
-            out_indices:    list[int] 或 None, 指定哪些 stage 层输出特征
+            out_layers:     list[int] 或 None, 指定哪些 stage 层输出特征
             froze_backbone: 是否冻结骨干网络
             load_ckpt:      是否加载本地预训练权重(自定义权重)
         """
         super().__init__()
         # features_only=True 直接去掉分类头
-        self.backbone = timm.create_model(model_name, pretrained=pretrained, features_only=True, out_indices=out_indices)
+        self.backbone = timm.create_model(model_name, pretrained=pretrained, features_only=True, out_indices=out_layers)
 
         # 是否冻结backbone
         if froze_backbone:
@@ -52,9 +52,9 @@ if __name__ == '__main__':
     # 配置字典
     cfg = {
         "type": "TIMMBackbone",
-        "model_name": "mobilenetv4_conv_small",
+        "model_name": "resnet50.a1_in1k",
         "pretrained": True,
-        "out_indices": [1, 2, 3, 4],
+        "out_layers": [4],
         "froze_backbone": True,
         "load_ckpt": None
 

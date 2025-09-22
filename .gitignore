@@ -3,5 +3,6 @@ __pycache__/
 heltondl.egg-info
 log/
 ckpt/
-debug.txt
+debug.py
 debug.log
+*.jpg
