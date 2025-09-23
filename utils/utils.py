@@ -3,7 +3,32 @@ import random
 import torch
 import numpy as np
 import os
+import argparse
+import importlib
 
+
+
+def dynamic_import_class(module_path, class_name='module_name', get_class=True):
+    '''动态导入类
+    '''
+    spec = importlib.util.spec_from_file_location(class_name, module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if get_class:
+        return getattr(module, class_name)
+    else:
+        return module
+    
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, help='config file path')
+    # 多卡
+    parser.add_argument("--local_rank", default=-1, type=int)
+    parser.add_argument('--n_gpus', default=1, type=int)
+    args = parser.parse_args()
+    return args
 
 
 def natural_key(s: str):

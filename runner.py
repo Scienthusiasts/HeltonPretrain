@@ -9,10 +9,10 @@ import torch.backends.cudnn as cudnn
 from functools import partial
 from torch.utils.data import DataLoader
 
-from utils.utils import seed_everything, worker_init_fn, save_ckpt
+from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class
 from utils.log_utils import *
 from utils.eval_utils import eval_epoch
-from utils.hooks import hook_after_batch, hook_after_epoch
+from utils.hooks import hook_after_batch, hook_after_epoch, hook_after_eval
 # 需要import才能注册
 from modules import * 
 from register import MODELS, DATASETS, OPTIMIZERS
@@ -40,8 +40,6 @@ class Runner():
         self.mode = mode
         self.log_dir = log_dir
         self.eval_interval = eval_interval
-        # GPU/CPU
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.epoch = epoch
         self.cur_epoch = 0
         self.cur_step = 0
@@ -49,23 +47,42 @@ class Runner():
         self.seed = seed
         # 设置全局种子
         seed_everything(self.seed)
-                                           
+
+        # GPU/CPU
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if self.mode=='train_ddp':
+            self.local_rank = int(os.environ["LOCAL_RANK"]) 
+            torch.cuda.set_device(self.local_rank)
+            dist.init_process_group('nccl')
+
         '''导入网络'''
-        self.model = MODELS.build_from_cfg(model_cfgs).to(self.device)
-        print(self.model)
+        self.model = MODELS.build_from_cfg(model_cfgs)
+        if self.mode=='train_ddp':
+            # 多卡时同步BN
+            self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model).cuda(self.local_rank)
+            self.model = nn.parallel.DistributedDataParallel(self.model, device_ids=[self.local_rank], find_unused_parameters=False)
+        else:
+            self.model.to(self.device)
 
         '''导入数据集'''
         self.train_dataset = DATASETS.build_from_cfg(dataset_cfgs["train_dataset_cfg"])
         self.valid_dataset = DATASETS.build_from_cfg(dataset_cfgs["valid_dataset_cfg"])
-        print(f'trainset图像数:{self.train_dataset.__len__()} validset图像数:{self.valid_dataset.__len__()}')
-        print(f'trainset类别数:{self.train_dataset.get_cls_num()} validset类别数:{self.valid_dataset.get_cls_num()}')
+        if self.mode == 'train' or (self.mode == 'train_ddp' and dist.get_rank() == 0):
+            print(f'trainset图像数:{self.train_dataset.__len__()} validset图像数:{self.valid_dataset.__len__()}')
+            print(f'trainset类别数:{self.train_dataset.get_cls_num()} validset类别数:{self.valid_dataset.get_cls_num()}')
+        # DDP训练时需要sampler且shuffle=False
+        train_sampler = None
+        if self.mode == 'train_ddp':
+            train_sampler = DistributedSampler(self.train_dataset)
         self.train_dataloader = DataLoader(
             dataset=self.train_dataset,
+            sampler=train_sampler,
             batch_size=dataset_cfgs["train_bs"],
             num_workers=dataset_cfgs["num_workers"],
-            shuffle=dataset_cfgs["train_shuffle"],
+            shuffle=False if self.mode == 'train_ddp' else dataset_cfgs["train_shuffle"],
             collate_fn=self.train_dataset.dataset_collate,
-            worker_init_fn=partial(worker_init_fn, seed=self.seed)
+            worker_init_fn=partial(worker_init_fn, seed=self.seed),
+            pin_memory=True # CPU → GPU 数据拷贝速度加速
         )
         self.valid_dataloader = DataLoader(
             dataset=self.valid_dataset,
@@ -73,7 +90,8 @@ class Runner():
             num_workers=dataset_cfgs["num_workers"],
             shuffle=dataset_cfgs["valid_shuffle"],
             collate_fn=self.valid_dataset.dataset_collate,
-            worker_init_fn=partial(worker_init_fn, seed=self.seed)
+            worker_init_fn=partial(worker_init_fn, seed=self.seed),
+            pin_memory=True # CPU → GPU 数据拷贝速度加速
         )
         # 一个epoch包含多少batch
         self.train_batch_num = len(self.train_dataloader)
@@ -94,15 +112,20 @@ class Runner():
         '''Hook 管理'''
         self._hooks = {}
 
-    # ========== Hook 机制 ==========
+    # Hook 机制 ==========
     def register_hook(self, event: str, func):
+        """注册hook
+        """
         if event not in self._hooks:
             self._hooks[event] = []
         self._hooks[event].append(func)
 
     def call_hooks(self, event: str, *args, **kwargs):
+        """调用一个hook
+        """
         for hook in self._hooks.get(event, []):
             hook(*args, **kwargs)
+
 
 
     def fit_batch(self, batch_datas):
@@ -113,11 +136,36 @@ class Runner():
         self.call_hooks("before_batch", runner=self)
 
         # 一个batch的前向传播+计算损失 
-        self.losses = self.model(self.device, batch_datas, return_loss=True)
+        # 确保 batch_datas 的所有数据已经在 self.device 上(batch_datas的组织形式是list)
+        batch_datas = [v.to(self.device, non_blocking=True) for v in batch_datas]
+        self.losses = self.model(batch_datas, return_loss=True)
         # 将上一次迭代计算的梯度清零 
         self.optimizer.zero_grad()
         # 反向传播
         self.losses['total_loss'].backward()
+
+
+
+        # 只在 DDP 模式 & 每 100 步检查一次
+        # if self.mode == 'train_ddp' and self.cur_step % 100 == 0:
+        #     torch.cuda.synchronize()   # 等待所有 CUDA 内核完成
+        #     dist.barrier()             # 确保所有进程的 backward 已结束
+
+        #     for name, param in self.model.named_parameters():
+        #         if param.grad is not None:
+        #             grad_norm = param.grad.norm()
+        #             # 克隆，避免修改原始梯度
+        #             grad_norm_tensor = grad_norm.detach().clone()
+        #             dist.all_reduce(grad_norm_tensor, op=dist.ReduceOp.SUM)
+        #             avg_norm = grad_norm_tensor.item() / dist.get_world_size()
+
+        #             if abs(grad_norm.item() - avg_norm) > 1e-6:
+        #                 print(f"[Rank {self.device}] Gradient not synchronized for {name}")
+        #                 print(f"Local norm: {grad_norm.item()}, Average norm: {avg_norm}")
+
+
+
+
         # 更新权重
         self.optimizer.step()
 
@@ -131,6 +179,9 @@ class Runner():
         self.call_hooks("before_epoch", runner=self)
 
         self.model.train()
+        # DDP时, 通过维持各个进程之间的相同随机数种子使不同进程能获得同样的shuffle效果
+        if self.mode=='train_ddp':
+            self.train_dataloader.sampler.set_epoch(self.cur_epoch)
         for step, batch_datas in enumerate(self.train_dataloader):
             self.cur_step = step
             '''一个batch的训练'''
@@ -156,111 +207,33 @@ class Runner():
 
 
 
-
-
+    def eval(self):
+        '''验证流程
+        '''
+        self.call_hooks("before_eval", runner=self)
+        self.call_hooks("after_eval", runner=self)
 
 
 
 
 # for test only:
 if __name__ == '__main__':
-    mode = 'train'
-    epoch = 50
-    seed = 42
-    log_dir = "./log/test111"
-    log_interval = 10
-    eval_interval = 1
-
-    # 模型配置参数
-    # model_cfgs = {
-    #     "type": "MSF2Net",
-    #     "load_ckpt": None,
-    #     "backbone":{
-    #         "type": "TIMMBackbone",
-    #         "model_name": "resnet50.a1_in1k",
-    #         "pretrained": True,
-    #         "out_layers": [1, 2, 3, 4],
-    #         "froze_backbone": True,
-    #         "load_ckpt": None
-    #     },
-    #     "head":{
-    #         "type": "MLPHead",
-    #         "layers_dim":[256+512+1024+2048, 256, 37], 
-    #         "cls_loss": {
-    #             "type": "CELoss"
-    #         }
-    #     }
-    # }
-    model_cfgs = {
-        "type": "FCNet",
-        "load_ckpt": None,
-        "backbone":{
-            "type": "TIMMBackbone",
-            "model_name": "resnet50.a1_in1k",
-            "pretrained": True,
-            "out_layers": [4],
-            "froze_backbone": True,
-            "load_ckpt": None
-        },
-        "head":{
-            "type": "MLPHead",
-            "layers_dim":[2048, 256, 37], 
-            "cls_loss": {
-                "type": "CELoss"
-            }
-        }
-    }
-    # 数据集配置参数
-    dataset_cfgs = {
-        "train_dataset_cfg": {
-            "type": "INDataset",
-            "img_dir": r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\The_Oxford_IIIT_Pet_Dataset\images\train',
-            "mode": "train",
-            "img_size": [224, 224],
-            "drop_block": True
-        },
-        "valid_dataset_cfg": {
-            "type": "INDataset",
-            "img_dir": r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\The_Oxford_IIIT_Pet_Dataset\images\valid',
-            "mode": "train",
-            "img_size": [224, 224],
-            "drop_block": False
-        },
-        "train_bs": 64,
-        "valid_bs": 1,
-        "num_workers": 0,
-        "train_shuffle": True,
-        "valid_shuffle": False
-    }
-
-    # 优化器配置参数
-    optimizer_cfgs = {
-        "type": "AdamW",
-        "lr": 1e-3,
-        "betas": (0.9, 0.999),
-        "weight_decay": 0.01
-    }
-    # 学习率衰减策略配置参数
-    scheduler_cfgs = {
-        "base_schedulers_cfgs": {
-            "type": "StepLR",
-            # 每间隔step_size个epoch更新学习率
-            "step_size": 1,
-            # 每次学习率变为原来的gamma倍
-            "gamma": 0.1**(1/epoch),
-        },
-        "warmup_schedulers_cfgs": {
-                "type": "WarmupScheduler",
-                "min_lr": 1e-5,
-                "warmup_epochs": 1
-        }
-    }
-    runner = Runner(mode, epoch, seed, log_dir, log_interval, eval_interval, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs)
+    args = get_args()
+    config_path = args.config
+    # 使用动态导入模块导入参数文件
+    cargs = dynamic_import_class(config_path, get_class=False)
+    # 初始化runner
+    runner = Runner(cargs.mode, cargs.epoch, cargs.seed, cargs.log_dir, cargs.log_interval, cargs.eval_interval, 
+                    cargs.model_cfgs, cargs.dataset_cfgs, cargs.optimizer_cfgs, cargs.scheduler_cfgs)
     # 注册 Hook
     runner.register_hook("after_batch", hook_after_batch)
     runner.register_hook("after_epoch", hook_after_epoch)
-    # 训练
-    runner.fit()
+    runner.register_hook("after_eval", hook_after_eval)
+
+    if cargs.mode in ['train', 'train_ddp']:
+        runner.fit()
+    if cargs.mode == 'eval':
+        runner.eval()
 
 
 

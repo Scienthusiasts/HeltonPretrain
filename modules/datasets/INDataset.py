@@ -134,34 +134,31 @@ class INDataset(data.Dataset):
 
 
     # for debug only:
-    def _vis_INDataset_batch(self, dataLoader, catNames):
+    def _vis_INDataset_batch(self, epoch, step, batch, cat_names):
         '''可视化训练集一个batch
         Args:
-            dataLoader: torch的data.DataLoader
-            catNames:   list, 类别名
+            cat_names:   list, 类别名
         Retuens:
             None     
         '''
         # 图像均值 标准差
         mean = np.array([0.485, 0.456, 0.406]) 
         std = np.array([[0.229, 0.224, 0.225]]) 
-        # 只可视化一个batch的图像:
-        for step, batch in enumerate(dataLoader):
-            if step > 0: break
-            imgs = batch[0]
-            labels = batch[1]
-            plt.figure(figsize = (8,8))
-            for idx, [img, label] in enumerate(zip(imgs, labels)):
-                img = img.numpy().transpose((1,2,0))
-                img = img * std + mean
-                plt.subplot(8,8,idx+1)
-                plt.imshow(img)
-                plt.title(catNames[label], fontsize=8)
-                plt.axis("off")
-                # 微调行间距
-                plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.97, wspace=0.01, hspace=0.2)
 
-            plt.savefig('./valid_data2.jpg', dpi=300)
+        imgs = batch[0]
+        labels = batch[1]
+        plt.figure(figsize = (8,8))
+        for idx, [img, label] in enumerate(zip(imgs, labels)):
+            img = img.numpy().transpose((1,2,0))
+            img = img * std + mean
+            plt.subplot(8,8,idx+1)
+            plt.imshow(img)
+            plt.title(cat_names[label], fontsize=8)
+            plt.axis("off")
+            # 微调行间距
+            plt.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.97, wspace=0.01, hspace=0.2)
+
+        plt.savefig(f'./epoch{epoch}_step{step}.jpg', dpi=300)
 
 
 
@@ -174,7 +171,7 @@ class INDataset(data.Dataset):
 if __name__ == '__main__':
 
     # 配置字典
-    img_dir = r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\Oxford_IIIT_Pet_FlickrBreeds\FlickrBreeds37_Oxford_IIIT_Pet_merge\train'
+    img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/train'
     cfg = {
         "dataset_cfg": {
             "type": "INDataset",
@@ -193,14 +190,15 @@ if __name__ == '__main__':
     train_dataset = DATASETS.build_from_cfg(dataset_cfg)
     print(f'数据集大小:{train_dataset.__len__()}')
     print(f'数据集类别数:{train_dataset.get_cls_num()}')
-    train_data_loader = DataLoader(dataset=train_dataset, batch_size=cfg["bs"], shuffle=cfg["shuffle"], collate_fn=train_dataset.dataset_collate, worker_init_fn=partial(worker_init_fn, seed=cfg["seed"]))
+    train_data_loader = DataLoader(dataset=train_dataset, batch_size=cfg["bs"], shuffle=cfg["shuffle"], num_workers=8, collate_fn=train_dataset.dataset_collate, worker_init_fn=partial(worker_init_fn, seed=cfg["seed"]))
     # 获取label name
-    catNames = sorted(os.listdir(img_dir))
-    print(catNames)
-    # 可视化一个batch里的图像
-    train_dataset._vis_INDataset_batch(train_data_loader, catNames)
+    cat_names = sorted(os.listdir(img_dir))
+    print(cat_names)
     # 输出数据格式
-    for step, batch in enumerate(train_data_loader):
-        print(batch[0].shape)
-        print(batch[1].shape)
-        break
+    for epoch in range(1, 10):
+        for step, batch in enumerate(train_data_loader):
+            print(batch[0].shape)
+            print(batch[1].shape)
+            if step == 0:
+                # 可视化一个batch里的图像
+                train_dataset._vis_INDataset_batch(epoch, step, batch, cat_names)

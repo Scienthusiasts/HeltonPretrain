@@ -17,14 +17,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 
-def eval_epoch(device, ckpt_path, model, val_dataloader, cat_names, log_dir):
+def eval_epoch(device, model, val_dataloader, cat_names, log_dir):
     '''一个epoch的评估(基于验证集)
     '''
-
-    '''是否导入权重'''
-    if ckpt_path:
-        model.load_state_dict(torch.load(ckpt_path))
-        print(f'ckpt({ckpt_path}) has loaded in val phase!')
     model.eval()
     # 记录真实标签和预测标签
     pred_list, true_list, soft_list = [], [], []
@@ -33,8 +28,9 @@ def eval_epoch(device, ckpt_path, model, val_dataloader, cat_names, log_dir):
         for batch_datas in tqdm(val_dataloader):
             '''推理一个batch
             '''
+            batch_datas = [v.to(device, non_blocking=True) for v in batch_datas]
             x, y = batch_datas
-            pred_logits = model(device, x)
+            pred_logits = model(x)
             # 预测结果对应置信最大的那个下标
             pred_label = torch.argmax(pred_logits, dim=1)
             # 记录(真实标签true_list, 预测标签pred_list, 置信度soft_list)
@@ -55,6 +51,7 @@ def eval_epoch(device, ckpt_path, model, val_dataloader, cat_names, log_dir):
     # 计算每个类别的 AP, F1Score
     mAP, mF1, form = clacAP(PRs, cat_names, true_list, soft_list)
     print(form)
+    print(f'acc. {acc}')
     # 评估结果以字典形式返回(统一格式, key的前缀一定有'val_')
     evaluations = dict(
         val_acc=acc, 

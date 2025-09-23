@@ -30,10 +30,9 @@ class MSF2Net(nn.Module):
             self.load_state_dict(torch.load(load_ckpt))
 
 
-    def forward(self, device, datas, return_loss=False):
-        """前向 / 计算损失
+    def forward(self, datas, return_loss=False):
+        """前向 / 计算损失(注意这里一定得把loss合并到forward中, 否则只调用loss方法得绕过module, DDP合并不了不同gpu的梯度)
         Args:
-            device:      
             datas:       return_loss=True时是dataloader传来的图像+标签, 否则只有图像
             return_loss: True则计算损失, 返回损失
         Returns:
@@ -42,16 +41,16 @@ class MSF2Net(nn.Module):
         """
         if not return_loss:
             # feats是多尺度特征图
-            feats = self.backbone(datas.to(device))  
+            feats = self.backbone(datas)  
             # 将不同尺度特征图池化后拼在一起
-            cat_feats = torch.cat([self.gap(x).squeeze(2,3) for x in feats], dim=1)
+            cat_feats = torch.cat([self.gap(x).flatten(1) for x in feats], dim=1)
             pred = self.head(cat_feats)
             return pred
         
         else:
-            x, y = datas[0].to(device), datas[1].to(device)
+            x, y = datas[0], datas[1]
             feats = self.backbone(x)  
-            cat_feats = torch.cat([self.gap(x).squeeze(2,3) for x in feats], dim=1)
+            cat_feats = torch.cat([self.gap(x).flatten(1) for x in feats], dim=1)
             losses = self.head.loss(cat_feats, y)
             return losses
 

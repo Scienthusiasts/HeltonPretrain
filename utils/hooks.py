@@ -27,13 +27,24 @@ def hook_after_epoch(runner):
     """
     if runner.mode == 'train' or (runner.mode == 'train_ddp' and dist.get_rank() == 0):
         if runner.cur_epoch % runner.eval_interval == 0:
-            # 评估
-            evaluations, flag_metric_name = eval_epoch(
-                runner.device, None, runner.model, runner.valid_dataloader,
-                runner.train_dataset.cat_names, runner.log_dir
-            )
-            # 记录/打印日志
-            runner.runner_logger.train_epoch_log_printer(runner.cur_epoch, evaluations, flag_metric_name)
+            # 评估+记录/打印日志
+            flag_metric_name = hook_after_eval(runner)
             # 保存权重
             save_ckpt(runner.cur_epoch, runner.eval_interval, runner.model, runner.optimizer,
                       runner.log_dir, runner.runner_logger.argsHistory, flag_metric_name)
+
+
+
+def hook_after_eval(runner):
+    """评估时 hook
+        Args:
+            runner: Runner实例
+    """
+    # 评估
+    evaluations, flag_metric_name = eval_epoch(
+        runner.device, runner.model, runner.valid_dataloader,
+        runner.train_dataset.cat_names, runner.log_dir
+    )
+    # 记录/打印日志
+    runner.runner_logger.train_epoch_log_printer(runner.cur_epoch, evaluations, flag_metric_name)
+    return flag_metric_name

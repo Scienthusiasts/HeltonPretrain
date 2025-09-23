@@ -43,7 +43,7 @@ class MLPHead(nn.Module):
         return nn.Sequential(*layers)
 
 
-    def forward(self, x:torch.tensor):
+    def forward(self, x):
         '''前向传播
             x: 输入维度必须是[B, C]
         '''
