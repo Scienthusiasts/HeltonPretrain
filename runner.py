@@ -143,29 +143,6 @@ class Runner():
         self.optimizer.zero_grad()
         # 反向传播
         self.losses['total_loss'].backward()
-
-
-
-        # 只在 DDP 模式 & 每 100 步检查一次
-        # if self.mode == 'train_ddp' and self.cur_step % 100 == 0:
-        #     torch.cuda.synchronize()   # 等待所有 CUDA 内核完成
-        #     dist.barrier()             # 确保所有进程的 backward 已结束
-
-        #     for name, param in self.model.named_parameters():
-        #         if param.grad is not None:
-        #             grad_norm = param.grad.norm()
-        #             # 克隆，避免修改原始梯度
-        #             grad_norm_tensor = grad_norm.detach().clone()
-        #             dist.all_reduce(grad_norm_tensor, op=dist.ReduceOp.SUM)
-        #             avg_norm = grad_norm_tensor.item() / dist.get_world_size()
-
-        #             if abs(grad_norm.item() - avg_norm) > 1e-6:
-        #                 print(f"[Rank {self.device}] Gradient not synchronized for {name}")
-        #                 print(f"Local norm: {grad_norm.item()}, Average norm: {avg_norm}")
-
-
-
-
         # 更新权重
         self.optimizer.step()
 

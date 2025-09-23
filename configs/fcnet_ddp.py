@@ -1,12 +1,12 @@
 trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
 validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
 nc = 37
-mode = 'train'
+mode = 'train_ddp'
 seed = 42
-log_dir = r'./log/fcnet_train'
+log_dir = r'./log/fcnet_train_ddp'
 img_size = [224, 224]
 epoch = 50
-bs = 64
+bs=16 # 64
 lr = 1e-3
 warmup_lr = 1e-5
 lr_decay = 1e-1

@@ -1,16 +1,16 @@
 trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
 validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
 nc = 37
-mode = 'train'
+mode = 'eval'
 seed = 42
-log_dir = r'./log/fcnet_train'
+log_dir = r'./log/fcnet_eval'
 img_size = [224, 224]
 epoch = 50
 bs = 64
 lr = 1e-3
 warmup_lr = 1e-5
 lr_decay = 1e-1
-load_ckpt = None
+load_ckpt = r'/mnt/yht/code/HeltonPretrain/log/test111/2025-09-23-12-35-44_train/best_val_acc.pt'
 log_interval = 50
 eval_interval = 1
 
