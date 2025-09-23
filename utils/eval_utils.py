@@ -2,18 +2,13 @@
 import os
 import json
 import torch
-import logging
-import datetime
-import argparse
 from torch import nn
-from logging import Logger
-import torch.optim as optim
-from functools import partial
-from torch.utils.data import DataLoader
-from timm.scheduler import CosineLRScheduler
 from tqdm import tqdm
+from PIL import Image, ImageFile
 import numpy as np
+
 from utils.metrics import *
+from modules.datasets.preprocess import Transforms
 # 多卡并行训练:
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
@@ -69,5 +64,3 @@ def eval_epoch(device, ckpt_path, model, val_dataloader, cat_names, log_dir):
     # 后续保存best_ckpt以val_flag_metric为参考
     flag_metric_name = "val_acc"
     return evaluations, flag_metric_name
-
-

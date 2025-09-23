@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import os
 # 自定义
 from register import DATASETS
-from utils.utils import seed_everything, worker_init_fn
+from utils.utils import seed_everything, worker_init_fn, natural_key
 from modules.datasets.preprocess import Transforms
 # 允许加载截断的图像
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -16,14 +16,6 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 
-
-
-def _natural_key(s: str):
-    # 如果类名都是数字，这会把 '10' 放到 '2' 之后；否则保持字典序
-    try:
-        return int(s)
-    except Exception:
-        return s.lower()
 
 
 
@@ -63,7 +55,7 @@ class INDataset(data.Dataset):
         '''对类进行排序，很重要!!!，否则会造成分类时标签匹配不上导致评估的精度很低'''
         # 只把目录当成类别(过滤文件、隐藏目录)
         all_entries = [d for d in os.listdir(img_dir) if os.path.isdir(os.path.join(img_dir, d)) and not d.startswith('.')]
-        self.cat_names = sorted(all_entries, key=_natural_key)
+        self.cat_names = sorted(all_entries, key=natural_key)
         # 数据集类别数      
         self.labels_num = len(self.cat_names)   
         # 记录数据集所有图片的路径和对应的类别

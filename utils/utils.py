@@ -6,6 +6,14 @@ import os
 
 
 
+def natural_key(s: str):
+    # 如果类名都是数字，这会把 '10' 放到 '2' 之后；否则保持字典序
+    try:
+        return int(s)
+    except Exception:
+        return s.lower()
+
+        
 def init_weights(model, init_type, mean=0, std=0.01):
     '''权重初始化方法
     '''

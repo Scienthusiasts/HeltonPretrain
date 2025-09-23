@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from utils.utils import seed_everything, worker_init_fn, save_ckpt
 from utils.log_utils import *
 from utils.eval_utils import eval_epoch
+from utils.hooks import hook_after_batch, hook_after_epoch
 # 需要import才能注册
 from modules import * 
 from register import MODELS, DATASETS, OPTIMIZERS
@@ -42,6 +43,9 @@ class Runner():
         # GPU/CPU
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.epoch = epoch
+        self.cur_epoch = 0
+        self.cur_step = 0
+        self.losses = None
         self.seed = seed
         # 设置全局种子
         seed_everything(self.seed)
@@ -55,8 +59,22 @@ class Runner():
         self.valid_dataset = DATASETS.build_from_cfg(dataset_cfgs["valid_dataset_cfg"])
         print(f'trainset图像数:{self.train_dataset.__len__()} validset图像数:{self.valid_dataset.__len__()}')
         print(f'trainset类别数:{self.train_dataset.get_cls_num()} validset类别数:{self.valid_dataset.get_cls_num()}')
-        self.train_dataloader = DataLoader(dataset=self.train_dataset, batch_size=dataset_cfgs["train_bs"], num_workers=dataset_cfgs["num_workers"], shuffle=dataset_cfgs["train_shuffle"], collate_fn=self.train_dataset.dataset_collate,  worker_init_fn=partial(worker_init_fn, seed=self.seed))
-        self.valid_dataloader = DataLoader(dataset=self.valid_dataset, batch_size=dataset_cfgs["valid_bs"], num_workers=dataset_cfgs["num_workers"], shuffle=dataset_cfgs["valid_shuffle"], collate_fn=self.valid_dataset.dataset_collate,  worker_init_fn=partial(worker_init_fn, seed=self.seed))
+        self.train_dataloader = DataLoader(
+            dataset=self.train_dataset,
+            batch_size=dataset_cfgs["train_bs"],
+            num_workers=dataset_cfgs["num_workers"],
+            shuffle=dataset_cfgs["train_shuffle"],
+            collate_fn=self.train_dataset.dataset_collate,
+            worker_init_fn=partial(worker_init_fn, seed=self.seed)
+        )
+        self.valid_dataloader = DataLoader(
+            dataset=self.valid_dataset,
+            batch_size=dataset_cfgs["valid_bs"],
+            num_workers=dataset_cfgs["num_workers"],
+            shuffle=dataset_cfgs["valid_shuffle"],
+            collate_fn=self.valid_dataset.dataset_collate,
+            worker_init_fn=partial(worker_init_fn, seed=self.seed)
+        )
         # 一个epoch包含多少batch
         self.train_batch_num = len(self.train_dataloader)
 
@@ -73,68 +91,70 @@ class Runner():
             self.runner_logger = RunnerLogger(self.mode, self.log_dir, log_interval, eval_interval, self.train_batch_num)
             self.log_dir = self.runner_logger.log_dir
 
+        '''Hook 管理'''
+        self._hooks = {}
 
-    def fit_batch(self, epoch, step, batch_datas):
+    # ========== Hook 机制 ==========
+    def register_hook(self, event: str, func):
+        if event not in self._hooks:
+            self._hooks[event] = []
+        self._hooks[event].append(func)
+
+    def call_hooks(self, event: str, *args, **kwargs):
+        for hook in self._hooks.get(event, []):
+            hook(*args, **kwargs)
+
+
+    def fit_batch(self, batch_datas):
         """一个batch的训练流程(前向+反向)
             Args:
-                epoch:
-                step:
                 batch_datas: dataloader传来的数据+标签
-            Returns:
-                losses: 所有损失组成的列表
         """
+        self.call_hooks("before_batch", runner=self)
+
         # 一个batch的前向传播+计算损失 
-        losses = self.model(self.device, batch_datas, return_loss=True)
+        self.losses = self.model(self.device, batch_datas, return_loss=True)
         # 将上一次迭代计算的梯度清零 
         self.optimizer.zero_grad()
         # 反向传播
-        losses['total_loss'].backward()
+        self.losses['total_loss'].backward()
         # 更新权重
         self.optimizer.step()
 
-        # 一个batch结束, 记录/打印train iter日志
-        if self.mode=='train' or (self.mode=='train_ddp' and dist.get_rank() == 0):
-            self.runner_logger.train_iter_log_printer(step, epoch, self.optimizer, losses)
+        self.call_hooks("after_batch", runner=self)
 
 
 
-    def fit_epoch(self, epoch):
+    def fit_epoch(self):
         '''一个epoch的训练
         '''
+        self.call_hooks("before_epoch", runner=self)
+
         self.model.train()
         for step, batch_datas in enumerate(self.train_dataloader):
+            self.cur_step = step
             '''一个batch的训练'''
-            self.fit_batch(epoch, step, batch_datas)
+            self.fit_batch(batch_datas)
             # 一个batch结束后更新学习率
             self.scheduler.step() 
 
-        # 一个epoch结束, 记录/打印train epoch日志, 保存权重
-        if self.mode=='train' or (self.mode=='train_ddp' and dist.get_rank() == 0):
-            if epoch % self.eval_interval == 0:
-                # 评估, 返回评估结果字典 和 参考指标名称(后续保存best_ckpt以flag_metric为参考)
-                evaluations, flag_metric_name = eval_epoch(self.device, None, self.model, self.valid_dataloader, self.train_dataset.cat_names, self.log_dir)
-                # 记录/打印
-                self.runner_logger.train_epoch_log_printer(epoch, evaluations, flag_metric_name)
-                # 保存ckpt(model+optimizer)
-                save_ckpt(epoch, self.eval_interval, self.model, self.optimizer, self.log_dir, self.runner_logger.argsHistory, flag_metric_name)
+        self.call_hooks("after_epoch", runner=self)
 
 
 
-
-    def trainer(self):
+    def fit(self):
         '''所有epoch的训练流程(训练+验证)
         '''
+        self.call_hooks("before_fit", runner=self)
+
         for epoch in range(1, self.epoch+1):
+            self.cur_epoch = epoch
             '''一个epoch的训练'''
-            self.fit_epoch(epoch)
+            self.fit_epoch()
+
+        self.call_hooks("after_fit", runner=self)
 
 
-
-
-
-    def evaler(self):
-        '''所有epoch的训练流程(训练+验证)
-        '''
 
 
 
@@ -194,14 +214,14 @@ if __name__ == '__main__':
     dataset_cfgs = {
         "train_dataset_cfg": {
             "type": "INDataset",
-            "img_dir": r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\Oxford_IIIT_Pet_FlickrBreeds\FlickrBreeds37_Oxford_IIIT_Pet_merge\train',
+            "img_dir": r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\The_Oxford_IIIT_Pet_Dataset\images\train',
             "mode": "train",
             "img_size": [224, 224],
             "drop_block": True
         },
         "valid_dataset_cfg": {
             "type": "INDataset",
-            "img_dir": r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\Oxford_IIIT_Pet_FlickrBreeds\FlickrBreeds37_Oxford_IIIT_Pet_merge\valid',
+            "img_dir": r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\The_Oxford_IIIT_Pet_Dataset\images\valid',
             "mode": "train",
             "img_size": [224, 224],
             "drop_block": False
@@ -236,7 +256,11 @@ if __name__ == '__main__':
         }
     }
     runner = Runner(mode, epoch, seed, log_dir, log_interval, eval_interval, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs)
-    runner.trainer()
+    # 注册 Hook
+    runner.register_hook("after_batch", hook_after_batch)
+    runner.register_hook("after_epoch", hook_after_epoch)
+    # 训练
+    runner.fit()
 
 
 
