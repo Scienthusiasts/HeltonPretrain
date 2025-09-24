@@ -9,7 +9,7 @@ import torch.backends.cudnn as cudnn
 from functools import partial
 from torch.utils.data import DataLoader
 
-from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class
+from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class, train_resume, set_dataloader_epoch
 from utils.log_utils import *
 from utils.eval_utils import eval_epoch
 from utils.hooks import hook_after_batch, hook_after_epoch, hook_after_eval
@@ -22,7 +22,7 @@ from register import MODELS, DATASETS, OPTIMIZERS
 
 class Runner():
     """整合训练/验证/推理时的抽象流程"""
-    def __init__(self, mode, epoch, seed, log_dir, log_interval, eval_interval, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs):
+    def __init__(self, mode, epoch, seed, log_dir, log_interval, eval_interval, resume_path, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs):
         """初始化各种模块
             Args:
                 mode:           train, train_ddp, eval, test, ...
@@ -31,6 +31,7 @@ class Runner():
                 log_dir:
                 log_interval:
                 eval_interval:
+                resume_path:
                 model_cfgs:     和网络模型有关的配置参数
                 dataset_cfgs:   和数据集有关的配置参数
                 optimizer_cfgs: 和优化器有关的配置参数
@@ -41,7 +42,8 @@ class Runner():
         self.log_dir = log_dir
         self.eval_interval = eval_interval
         self.epoch = epoch
-        self.cur_epoch = 0
+        self.cur_epoch = 1
+        self.start_epoch = 1
         self.cur_step = 0
         self.losses = None
         self.seed = seed
@@ -112,6 +114,13 @@ class Runner():
         '''Hook 管理'''
         self._hooks = {}
 
+        # resume
+        if resume_path and self.mode in ['train', 'train_ddp']:
+            self.start_epoch = train_resume(resume_path, self.model, self.optimizer, self.scheduler, self.runner_logger, self.train_batch_num)
+         # 打印模型详细信息
+        if self.mode == 'train' or (self.mode == 'train_ddp' and dist.get_rank() == 0):
+            self.runner_logger.log_model_info(self.model, self.optimizer)
+
     # Hook 机制 ==========
     def register_hook(self, event: str, func):
         """注册hook
@@ -156,9 +165,8 @@ class Runner():
         self.call_hooks("before_epoch", runner=self)
 
         self.model.train()
-        # DDP时, 通过维持各个进程之间的相同随机数种子使不同进程能获得同样的shuffle效果
-        if self.mode=='train_ddp':
-            self.train_dataloader.sampler.set_epoch(self.cur_epoch)
+        # 固定每个epoch的随机性:
+        set_dataloader_epoch(self.train_dataloader, self.cur_epoch, self.seed)
         for step, batch_datas in enumerate(self.train_dataloader):
             self.cur_step = step
             '''一个batch的训练'''
@@ -175,7 +183,7 @@ class Runner():
         '''
         self.call_hooks("before_fit", runner=self)
 
-        for epoch in range(1, self.epoch+1):
+        for epoch in range(self.start_epoch, self.epoch+1):
             self.cur_epoch = epoch
             '''一个epoch的训练'''
             self.fit_epoch()
@@ -201,13 +209,15 @@ if __name__ == '__main__':
     cargs = dynamic_import_class(config_path, get_class=False)
     # 初始化runner
     runner = Runner(cargs.mode, cargs.epoch, cargs.seed, cargs.log_dir, cargs.log_interval, cargs.eval_interval, 
-                    cargs.model_cfgs, cargs.dataset_cfgs, cargs.optimizer_cfgs, cargs.scheduler_cfgs)
+                    cargs.resume, cargs.model_cfgs, cargs.dataset_cfgs, cargs.optimizer_cfgs, cargs.scheduler_cfgs)
     # 注册 Hook
     runner.register_hook("after_batch", hook_after_batch)
     runner.register_hook("after_epoch", hook_after_epoch)
     runner.register_hook("after_eval", hook_after_eval)
 
     if cargs.mode in ['train', 'train_ddp']:
+        # 拷贝一份当前训练对应的config文件(方便之后查看细节)
+        shutil.copy(config_path, os.path.join(runner.log_dir, os.path.basename(config_path)))
         runner.fit()
     if cargs.mode == 'eval':
         runner.eval()

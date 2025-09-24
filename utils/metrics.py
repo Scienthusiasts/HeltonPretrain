@@ -145,4 +145,4 @@ def clacAP(PRs, cat, trueList, softList):
     mF1 /= len(cat)
     form.append(['average', mAP, mF1])
 
-    return mAP, mF1, tabulate(form, headers='firstrow')
+    return mAP, mF1, tabulate(form, headers='firstrow', tablefmt="github")

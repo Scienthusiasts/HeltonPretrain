@@ -5,6 +5,8 @@ import numpy as np
 import os
 import argparse
 import importlib
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import RandomSampler
 
 
 
@@ -40,20 +42,42 @@ def natural_key(s: str):
 
         
 def init_weights(model, init_type, mean=0, std=0.01):
-    '''权重初始化方法
+    '''权重初始化方法 
     '''
-    for module in model.modules():
-        if isinstance(module, (nn.Conv2d, nn.Linear)):
-            if init_type=='he':
-                nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
-            if init_type=='normal':
-                # 使用高斯随机初始化
-                nn.init.normal_(module.weight, mean=mean, std=std)  
-            if module.bias is not None:
-                nn.init.constant_(module.bias, 0)
-        elif isinstance(module, nn.BatchNorm2d):
-            nn.init.constant_(module.weight, 1)
-            nn.init.constant_(module.bias, 0)
+    for name, param in model.named_parameters():
+        # 处理卷积层和全连接层的权重
+        if 'weight' in name and param.dim() >= 2:
+            if init_type == 'he':
+                nn.init.kaiming_normal_(param, mode='fan_out', nonlinearity='relu')
+            elif init_type == 'normal':
+                nn.init.normal_(param, mean=mean, std=std)
+            elif init_type == 'xavier':
+                nn.init.xavier_normal_(param)
+            elif init_type == 'uniform':
+                nn.init.uniform_(param, a=-std, b=std)
+        
+        # 处理偏置项
+        elif 'bias' in name:
+            nn.init.constant_(param, 0)
+        
+        # 处理独立的nn.Parameter（不是模块的weight/bias）
+        elif param.dim() >= 2:  # 只初始化维度>=2的Parameter
+            if init_type == 'he':
+                nn.init.kaiming_normal_(param, mode='fan_out', nonlinearity='relu')
+            elif init_type == 'normal':
+                nn.init.normal_(param, mean=mean, std=std)
+            elif init_type == 'xavier':
+                nn.init.xavier_normal_(param)
+            elif init_type == 'uniform':
+                nn.init.uniform_(param, a=-std, b=std)
+        
+        # 处理一维的Parameter（如偏置或标量参数）
+        elif param.dim() == 1 and len(param) > 1:  # 长度>1的一维参数
+            if init_type == 'normal':
+                nn.init.normal_(param, mean=mean, std=std)
+            elif init_type == 'uniform':
+                nn.init.uniform_(param, a=-std, b=std)
+
 
 
 def seed_everything(seed):
@@ -81,12 +105,12 @@ def worker_init_fn(worker_id, seed, rank=0):
 
 
 
-def save_ckpt(epoch, eval_interval, model, optimizer, log_dir, argsHistory, flag_metric_name):
+def save_ckpt(epoch, eval_interval, model, scheduler, log_dir, argsHistory, flag_metric_name):
     '''保存权重和训练断点
         Args:
             - epoch:       当前epoch
             - model:       网络模型实例
-            - optimizer:   优化器实例
+            - scheduler:   学习率策略实例(包含优化器)
             - log_dir:     日志文件保存目录
             - argsHistory: 日志文件记录实例
             - logger:      日志输出实例
@@ -94,17 +118,71 @@ def save_ckpt(epoch, eval_interval, model, optimizer, log_dir, argsHistory, flag
         Returns:
             None
     '''  
+    # ckpt一定不包含ddp那层封装的module
+    ckpt = model.module.state_dict() if isinstance(model, DDP) else model.state_dict()
     # checkpoint_dict能够恢复断点训练
     checkpoint_dict = {
         'epoch': epoch, 
         'model_state_dict': model.state_dict(), 
-        'optim_state_dict': optimizer.state_dict()
+        'optim_state_dict': scheduler.optimizer.state_dict(),
+        'sched_state_dict': scheduler.base_scheduler.state_dict()
         }
     torch.save(checkpoint_dict, os.path.join(log_dir, f"train_epoch{epoch}.pt"))
-    torch.save(model.state_dict(), os.path.join(log_dir, "last.pt"))
+    torch.save(ckpt, os.path.join(log_dir, "last.pt"))
     # 如果本次Epoch的参考指标最大，则保存网络参数
     flag_metric_list = argsHistory.args_history_dict[flag_metric_name]
     best_flag_metric_val = max(flag_metric_list)
     best_epoch = flag_metric_list.index(best_flag_metric_val) + 1
     if epoch == best_epoch * eval_interval:
-        torch.save(model.state_dict(), os.path.join(log_dir, f'best_{flag_metric_name}.pt'))
+        torch.save(ckpt, os.path.join(log_dir, f'best_{flag_metric_name}.pt'))
+
+
+
+
+def train_resume(resume, model, optimizer, scheduler, runner_logger, batch_nums):
+    '''保存权重和训练断点
+        Args:
+            resume:      是否恢复断点训练
+            model:       网络模型
+            optimizer:   优化器
+            runner_logger:      日志输出实例
+            scheduler:
+            batch_nums:
+        Returns:
+            None
+    '''  
+    ckpt = torch.load(resume, map_location="cpu")
+    resume_epoch = ckpt['epoch'] + 1
+    model.load_state_dict(ckpt['model_state_dict'])
+    optimizer.load_state_dict(ckpt['optim_state_dict'])
+    scheduler.base_scheduler.load_state_dict(ckpt['sched_state_dict'])
+    runner_logger.logger.info(f'resume:{resume}')
+    runner_logger.logger.info(f'resume_epoch:{resume_epoch}')
+    # 导入上一次中断训练时的args
+    json_dir, _ = os.path.split(resume)
+    runner_logger.argsHistory.loadRecord(json_dir)
+    scheduler.last_epoch = batch_nums * resume_epoch
+    return resume_epoch
+
+
+
+
+def set_dataloader_epoch(dataloader, epoch, base_seed):
+    """保证 DataLoader resume 后的随机性与原训练一致
+    Args:
+        dataloader: DataLoader 对象
+        epoch:      当前 epoch
+        base_seed:  训练时固定的基础随机种子
+    """
+    # 处理 DistributedSampler
+    # DDP时, 通过维持各个进程之间的相同随机数种子使不同进程能获得同样的shuffle效果
+    if hasattr(dataloader, "sampler") and hasattr(dataloader.sampler, "set_epoch"):
+        dataloader.sampler.set_epoch(epoch)
+
+    # 处理普通 DataLoader shuffle
+    elif hasattr(dataloader, "sampler"):
+        # 如果使用了 RandomSampler，说明启用了 shuffle
+        from torch.utils.data import RandomSampler
+        if isinstance(dataloader.sampler, RandomSampler):
+            seed = base_seed + epoch
+            seed_everything(seed)

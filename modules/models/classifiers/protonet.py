@@ -7,8 +7,8 @@ from register import MODELS
 
 
 @MODELS.register
-class FCNet(nn.Module):
-    """经典图像分类网络
+class ProtoNet(nn.Module):
+    """Prototype Network for Image Classification
 
     """
     def __init__(self, backbone:nn.Module, head:nn.Module, load_ckpt=None):
@@ -21,8 +21,6 @@ class FCNet(nn.Module):
         super().__init__()
         # 网络模块
         self.backbone = backbone
-        # 无论最后尺寸多大，都池化成1x1,这样输入的图像尺寸就可以是任意大小,但必须大于224x224
-        self.gap = nn.AdaptiveAvgPool2d(1)
         self.head = head
         # 是否导入预训练权重
         if load_ckpt: 
@@ -42,15 +40,12 @@ class FCNet(nn.Module):
         if not return_loss:
             # feats是多尺度特征图
             feats = self.backbone(datas)  
-            # 取最后一层特征池化后接MLP层
-            last_feat = self.gap(feats[-1]).flatten(1)
-            pred = self.head(last_feat)
+            pred = self.head(feats[-1])
             return pred
         
         else:
             x, y = datas[0], datas[1]
             feats = self.backbone(x)  
-            last_feat = self.gap(feats[-1]).flatten(1)
-            losses = self.head.loss(last_feat, y)
+            losses = self.head.loss(feats[-1], y)
             return losses
 

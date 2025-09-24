@@ -30,7 +30,7 @@ def hook_after_epoch(runner):
             # 评估+记录/打印日志
             flag_metric_name = hook_after_eval(runner)
             # 保存权重
-            save_ckpt(runner.cur_epoch, runner.eval_interval, runner.model, runner.optimizer,
+            save_ckpt(runner.cur_epoch, runner.eval_interval, runner.model, runner.scheduler,
                       runner.log_dir, runner.runner_logger.argsHistory, flag_metric_name)
 
 

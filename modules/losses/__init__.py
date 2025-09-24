@@ -1,3 +1,3 @@
-from .loss import CELoss
+from .loss import CELoss, MultiClassBCELoss
 
-__all__ = ["CELoss"]
+__all__ = ["CELoss", "MultiClassBCELoss"]

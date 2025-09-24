@@ -12,6 +12,7 @@ from functools import partial
 from torch.utils.data import DataLoader
 from timm.scheduler import CosineLRScheduler
 from torch.utils.tensorboard import SummaryWriter
+from typing import List, Dict, Optional
 # 多卡并行训练:
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
@@ -75,6 +76,174 @@ class ArgsHistory():
 
 
 
+
+
+
+
+class ModelInfoLogger:
+    """模型信息记录器，用于生成类似MMDetection的模型参数表格"""
+    
+    @staticmethod
+    def get_parameter_info(model: nn.Module, optimizer:optim.Optimizer) -> List[Dict]:
+        """获取模型参数信息
+        
+        Args:
+            model: 模型实例
+            optimizer: 优化器实例（用于获取学习率和权重衰减）
+            
+        Returns:
+            参数信息列表
+        """
+        param_info = []
+        
+        # 创建参数到优化器参数组的映射
+        param_to_group = {}
+        for group_idx, param_group in enumerate(optimizer.param_groups):
+            for param in param_group['params']:
+                param_to_group[param] = group_idx
+        
+        for name, param in model.named_parameters():
+            # 获取参数形状
+            shape = "X".join(str(dim) for dim in param.shape)
+            
+            # 获取参数值范围
+            if param.numel() > 0:
+                min_val = param.data.min().item()
+                max_val = param.data.max().item()
+                value_scale = f"Min:{min_val:.3f} Max:{max_val:.3f}"
+            else:
+                value_scale = "Min:0.000 Max:0.000"
+            
+            # 判断是否被优化（通常是可训练参数）
+            optimized = "Y" if param.requires_grad else "N"
+            
+            # 默认值
+            lr = 0.001
+            wd = 0.0
+            
+            # 从优化器中获取实际的学习率和权重衰减
+            if param in param_to_group:
+                group_idx = param_to_group[param]
+                param_group = optimizer.param_groups[group_idx]
+                lr = param_group.get('lr', lr)
+                wd = param_group.get('weight_decay', wd)
+            
+            param_info.append({
+                'name': name,
+                'optimized': optimized,
+                'shape': shape,
+                'value_scale': value_scale,
+                'lr': lr,
+                'wd': wd
+            })
+        
+        return param_info
+    
+
+    @staticmethod
+    def create_model_table(param_info: List[Dict], max_name_width: int = 60, 
+                        max_shape_width: int = 15) -> str:
+        """创建模型参数表格
+        Args:
+            param_info: 参数信息列表
+            max_name_width: 名称列最大宽度
+            max_shape_width: 形状列最大宽度
+            
+        Returns:
+            格式化后的表格字符串
+        """
+        if not param_info:
+            return "No parameters found."
+        
+        # 表格列定义
+        columns = [
+            {'name': 'Parameter Name', 'key': 'name', 'width': max_name_width},
+            {'name': 'Optimized', 'key': 'optimized', 'width': 10},
+            {'name': 'Shape', 'key': 'shape', 'width': max_shape_width},
+            {'name': 'Value Scale [Min,Max]', 'key': 'value_scale', 'width': 25},
+            {'name': 'Init Lr', 'key': 'lr', 'width': 8},
+            {'name': 'Wd', 'key': 'wd', 'width': 8}
+        ]
+        
+        # 计算表格总宽度
+        table_width = sum(col['width'] for col in columns) + len(columns) * 3 + 1
+        
+        # 创建表格标题
+        title = "Model Information"
+        title_line = f"+{'-' * (table_width - 2)}+"
+        title_row = f"|{title:^{table_width - 2}}|"
+        
+        # 创建表头分隔线
+        header_separator = "+".join(["-" * (col['width'] + 2) for col in columns])
+        header_separator = f"+{header_separator}+"
+        
+        # 创建表头
+        header = "|"
+        for col in columns:
+            header += f" {col['name']:^{col['width']}} |"
+        
+        # 构建表格
+        table_lines = []
+        table_lines.append(title_line)
+        table_lines.append(title_row)
+        table_lines.append(header_separator)
+        table_lines.append(header)
+        table_lines.append(header_separator)
+        
+        # 添加数据行（居中对齐）
+        for info in param_info:
+            row = "|"
+            for col in columns:
+                value = info[col['key']]
+                if col['key'] in ['lr', 'wd']:
+                    formatted_value = f"{value:.5f}" if isinstance(value, float) else str(value)
+                else:
+                    formatted_value = str(value)
+                
+                if len(formatted_value) > col['width']:
+                    formatted_value = formatted_value[:col['width']-3] + "..."
+                
+                row += f" {formatted_value:^{col['width']}} |"
+            table_lines.append(row)
+        
+        table_lines.append(header_separator)
+        
+        return "\n".join(table_lines)
+
+    
+    @staticmethod
+    def get_model_summary(model: nn.Module) -> Dict:
+        """获取模型摘要信息
+        
+        Args:
+            model: 模型实例
+            
+        Returns:
+            模型摘要信息字典
+        """
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        
+        return {
+            'total_parameters': total_params,
+            'trainable_parameters': trainable_params,
+            'non_trainable_parameters': total_params - trainable_params,
+            'parameter_memory_MB': total_params * 4 / (1024 ** 2)  # 假设float32，4字节/参数
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class RunnerLogger:
     """日志记录/打印相关
     """
@@ -113,12 +282,46 @@ class RunnerLogger:
             stream_handler = logging.StreamHandler()
             stream_handler.setLevel(logging.INFO)
             stream_handler.setFormatter(formatter)
-            # logger.addHandler(stream_handler)
+            self.logger.addHandler(stream_handler)
         # 对于非主进程，可以设置一个空的日志处理器来忽略日志记录
         else:
             self.logger.addHandler(logging.NullHandler())
 
         self.argsHistory = ArgsHistory(self.log_dir, self.mode)
+        self.model_info_logger = ModelInfoLogger()
+
+
+
+    def log_model_info(self, model: nn.Module, optimizer:optim.Optimizer):
+        """打印模型详细信息表格
+            Args:
+                model: 模型实例
+                optimizer: 优化器实例（用于获取真实的学习率和权重衰减）
+        """
+        # 保存原 formatter
+        handlers = self.logger.handlers
+        original_formatters = [h.formatter for h in handlers]
+        # 临时替换为无 asctime 的 formatter
+        simple_formatter = logging.Formatter('%(message)s')
+        for h in handlers:
+            h.setFormatter(simple_formatter)
+        try:
+            # 获取参数信息
+            param_info = self.model_info_logger.get_parameter_info(model, optimizer)
+            model_table = self.model_info_logger.create_model_table(param_info)
+            summary = self.model_info_logger.get_model_summary(model)
+
+            for line in model_table.split('\n'):
+                self.logger.info(line)
+            self.logger.info(f"Total Parameters: {summary['total_parameters']:,}")
+            self.logger.info(f"Trainable Parameters: {summary['trainable_parameters']:,}")
+            self.logger.info(f"Non-trainable Parameters: {summary['non_trainable_parameters']:,}")
+            self.logger.info(f"Estimated Memory Usage: {summary['parameter_memory_MB']:.2f} MB \n")
+        finally:
+            # 恢复原 formatter
+            for h, f in zip(handlers, original_formatters):
+                h.setFormatter(f)
+
 
 
     def train_iter_log_printer(self, step:int, epoch:int, optimizer:optim, losses:dict):

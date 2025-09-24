@@ -71,6 +71,9 @@ def infer_single_img(device, model, img_size, img_path, cat_names, log_dir, top_
 
 
 
+
+
+
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log_dir = "./"

@@ -1,18 +1,20 @@
-trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
-validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
+# /mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images /mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge
+trainset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/train'
+validset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
 nc = 37
-mode = 'eval'
+mode = 'train'
 seed = 42
-log_dir = r'./log/fcnet_eval'
+log_dir = r'./log/debug'
 img_size = [224, 224]
 epoch = 50
 bs = 64
 lr = 1e-3
 warmup_lr = 1e-5
 lr_decay = 1e-1
-load_ckpt = r'/mnt/yht/code/HeltonPretrain/log/fcnet_train/2025-09-23-12-35-44_train/best_val_acc.pt'
+load_ckpt = None
 log_interval = 50
 eval_interval = 1
+resume = r'/mnt/yht/code/HeltonPretrain/log/debug/2025-09-24-15-54-09_train/train_epoch5.pt'
 
 
 '''模型配置参数'''
