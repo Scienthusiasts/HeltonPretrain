@@ -1,9 +1,12 @@
-# HeltonPretrain 🚀
+<div align='center'>
+    <h1>HeltonPretrain 🚀</h1>
+    <p><em>0~1实现预训练框架，基于Pytorch，不断完善中 ~</em></p>
+</div>
 
-从0实现预训练框架，正在完善中~
 
 
-## 设计逻辑
+
+## ✒️设计逻辑
 设计理念: 简洁版mm框架
 
 **框架设计逻辑： 通用(换一个任务, 当前的设计逻辑可以完全套用) / 专用(仅适用于当前任务)**
@@ -21,7 +24,7 @@
 
 
 
-## 安装
+## 🔧安装
 
 ```
 cd HeltonPretrain
@@ -31,7 +34,7 @@ pip install -e .
 
 
 
-## 训练
+## 🔥训练
 
 单卡训练 example
 
@@ -49,7 +52,7 @@ sh run.sh
 
 
 
-## 评估
+## 🔥评估
 
 ```
  # 注意修改config文件里对应参数, mode="eval"
@@ -58,7 +61,7 @@ sh run.sh
 
 
 
-## 推理
+## 🔥推理
 
 ```
 python infer.py 
@@ -66,22 +69,23 @@ python infer.py
 
 
 
-## 更新日志
+## 📃更新日志
 **update 25/9/24**
+
 - 代码重构 ✅
 - **支持注册机制(动态配置自定义参数文件), hook机制** ✨
 - **支持Pytorch DDP 分布式训练** ✨
-- 自动日志记录, 支持 `tensorboard`
-- resume 中断恢复训练
-- 支持 scheduler (学习率decay)
-- 兼容 `timm` 支持的 Backbone模型，可灵活更换 Backbone
-- 兼容 `Albentation` 图像增强方法
-- 支持混淆矩阵, accuracy, f1score, mAP 等评估指标
+- 自动日志记录, 支持 `tensorboard` ✅
+- resume 中断恢复训练 ✅
+- 支持 scheduler (学习率decay) ✅
+- 兼容 `timm` 支持的 Backbone模型，可灵活更换 Backbone ✅
+- 兼容 `Albentation` 图像增强方法 ✅
+- 支持混淆矩阵, accuracy, f1score, mAP 等评估指标 ✅
 - 深度学习 Hello Word -> 支持图像分类任务 ✅
-- 各种表征学习自监督方法 (完善中...) 
+- 各种表征学习自监督方法 (完善中...) ➡️
 
 
 
-## TODO
+## ➡️TODO
 框架迁移 (将适配更多下游任务, 检测, 分割, 生成...)
 
