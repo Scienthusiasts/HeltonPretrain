@@ -28,7 +28,7 @@ def infer_single_img(device, model, img_size, img_path, cat_names, log_dir, top_
     tensor_img = tensor_img.permute(2,0,1).unsqueeze(0).to(device)
     # 推理
     with torch.no_grad():
-        pred_logits = model(device, tensor_img)
+        pred_logits = model(tensor_img)
         pred_label = torch.argmax(pred_logits, dim=1).cpu().numpy().item() 
         pred_score = pred_logits.softmax(dim=-1).cpu().numpy().squeeze()
 
@@ -78,29 +78,30 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log_dir = "./"
     model_cfgs = {
-        "type": "FCNet",
-        "load_ckpt": r'F:\Desktop\git\HeltonPretrain\log\test111\2025-09-23-01-04-07_train\best_val_acc.pt',
+        "type": "ProtoNet",
+        "load_ckpt": r'/mnt/yht/code/HeltonPretrain/log/protonet_train/2025-09-24-10-09-25_train/best_val_acc.pt',
         "backbone":{
             "type": "TIMMBackbone",
             "model_name": "resnet50.a1_in1k",
-            "pretrained": True,
+            "pretrained": False,
             "out_layers": [4],
             "froze_backbone": True,
-            "load_ckpt": None
+            "load_ckpt": r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt'
         },
         "head":{
-            "type": "MLPHead",
-            "layers_dim":[2048, 256, 37], 
+            "type": "ProtoHead",
+            "layers_dim":[2048, 1024, 256], 
+            "nc":37,
             "cls_loss": {
-                "type": "CELoss"
+                "type": "MultiClassBCELoss"
             }
         }
     }
     model = MODELS.build_from_cfg(model_cfgs).to(device)
     model.eval()
-    img_dir = r'F:\Desktop\master\datasets\Classification\HUAWEI_cats_dogs_fine_grained\Oxford_IIIT_Pet_FlickrBreeds\FlickrBreeds37_Oxford_IIIT_Pet_merge\valid'
+    img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
     all_entries = [d for d in os.listdir(img_dir) if os.path.isdir(os.path.join(img_dir, d)) and not d.startswith('.')]
     cat_names = sorted(all_entries, key=natural_key)
     img_size = [224, 224]
-    img_path = rf"{img_dir}\pug\pug_49.jpg"
+    img_path = rf"{img_dir}/Maine_Coon/Maine_Coon_41.jpg"
     infer_single_img(device, model, img_size, img_path, cat_names, log_dir)
