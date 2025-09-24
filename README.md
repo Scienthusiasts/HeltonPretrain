@@ -1,12 +1,13 @@
 # HeltonPretrain 🚀
 
-从0实现图像分类/预训练框架，正在完善中~
+从0实现预训练框架，正在完善中~
 
 
 ## 设计逻辑
-简洁版mm框架
+设计理念: 简洁版mm框架
 
-**框架设计逻辑 通用(换一个任务, 当前的设计逻辑可以完全套用) / 专用(仅适用于当前任务)**
+**框架设计逻辑： 通用(换一个任务, 当前的设计逻辑可以完全套用) / 专用(仅适用于当前任务)**
+
 - `configs/*` (专用, 但其组织形式通用)
 - `modules/*` (专用, 但其组织形式通用)
 - `utils/log_utils.py` (通用)
@@ -19,15 +20,49 @@
 - `infer.py` (专用)
 
 
+
+## 安装
+
+```
+cd HeltonPretrain
+pip install -e .
+```
+
+
+
+
 ## 训练
 
+单卡训练 example
+
+```
+ # 注意修改config文件里对应参数, mode="train"
+ python runner.py --config configs/fcnet.py
+```
+
+DDP 多卡训练 example
+
+```
+ # 注意修改config文件里对应参数, mode="train_ddp"
+sh run.sh
+```
 
 
 
+## 评估
+
+```
+ # 注意修改config文件里对应参数, mode="eval"
+ python runner.py --config configs/fcnet.py
+```
 
 
 
+## 推理
 
+```
+python infer.py 
+```
 
 
 
@@ -45,7 +80,8 @@
 - 深度学习 Hello Word -> 支持图像分类任务 ✅
 - 各种表征学习自监督方法 (完善中...) 
 
+
+
 ## TODO
 框架迁移 (将适配更多下游任务, 检测, 分割, 生成...)
-
 
