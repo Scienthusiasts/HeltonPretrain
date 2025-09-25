@@ -30,6 +30,7 @@ class ProtoHead(nn.Module):
         # init_weights(self.prototypes, 'normal', 0.01)
 
 
+
     def make_layers(self, layers_dim):
         '''根据layers_dim生成自定义MLP层
         '''
@@ -42,13 +43,16 @@ class ProtoHead(nn.Module):
             if i < len(layers_dim) - 2:  
                 layers.append(nn.BatchNorm2d(out_dim))
                 layers.append(nn.ReLU(inplace=True))
-
         return nn.Sequential(*layers)
+
 
 
     def forward(self, x):
         '''前向传播
-            x: 输入维度必须是[B, C, H, W]
+            Args:
+                x: 输入维度必须是[B, C, H, W]
+            Returns:
+                sim: 逐类别余弦相似度[B, nc]
         '''
         # [B, C, H, W] -> [B, dim, H, W] -> [B, dim, H*W]
         x = self.mlp(x).flatten(2) 
@@ -61,18 +65,19 @@ class ProtoHead(nn.Module):
 
 
 
-
     def loss(self, x, y):
         '''前向传播+计算损失(训练时使用)
-            x: 输入维度必须是[B, C, H, W]
+            Args:
+                x: 输入维度必须是[B, C, H, W]
+                y: 标签[B, ]
+            Returns:
+                losses: 字典形式组织的损失
         '''
         logits = self.forward(x)
         cls_loss = self.clsLoss(logits, y)
-
         # 顺便计算并返回acc.指标
         pred_logits, pred_labels = torch.max(logits, dim=1)
         acc = sum(pred_labels==y) / y.shape[0]
-
         # 组织成字典形式返回
         losses = dict(
             total_loss = cls_loss,
@@ -83,6 +88,37 @@ class ProtoHead(nn.Module):
 
 
 
+
+    def forward_with_protoheatmap(self, x):
+        """前向 + 可视化prototype的注意力热图
+            Args:
+                x: 输入维度必须是[B, C, H, W]
+            Returns:
+                sim:         逐类别特征图的余弦相似度之和[B, nc]
+                sim_heatmap: 归一化余弦相似度特征图, 可以用来可视化
+        """
+        # 记录形状
+        B, _, H, W = x.shape
+        nc = self.prototypes.shape[0]
+        # [B, C, H, W] -> [B, dim, H, W] -> [B, dim, H*W]
+        x = self.mlp(x).flatten(2) 
+        # 计算余弦相似度
+        x_norm = F.normalize(x, p=2, dim=1) 
+        prototypes_norm = F.normalize(self.prototypes, p=2, dim=1) 
+        # 使用einsum计算余弦相似度: [B, dim, C], [nc, dim] -> [B, nc, C]
+        sim_feat = torch.einsum('bdc,nd->bnc', x_norm, prototypes_norm)
+        # [B, nc, C] -> [B, nc]
+        sim = sim_feat.sum(dim=-1)
+
+        '''归一化'''
+        # 范围归一化 [-1, 1] -> [0, 1]
+        # sim_heatmap = (sim_feat + 1.) * 0.5
+        # 最大最小归一化
+        sim_max, sim_min = torch.max(sim_feat, dim=-1, keepdim=True)[0], torch.min(sim_feat, dim=-1, keepdim=True)[0]
+        sim_heatmap = (sim_feat - sim_min) / (sim_max - sim_min)
+        # [B, nc, C] -> [B, nc, H, W]
+        sim_heatmap = sim_heatmap.reshape(B, nc, H, W)
+        return sim, sim_heatmap
 
 
 

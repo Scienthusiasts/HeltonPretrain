@@ -49,3 +49,16 @@ class ProtoNet(nn.Module):
             losses = self.head.loss(feats[-1], y)
             return losses
 
+
+
+    def forward_with_protoheatmap(self, datas):
+        """前向 + 可视化prototype的注意力热图
+            Args:
+                datas:       dataloader传来的图像+标签
+            Returns:
+                pred:        逐类别特征图的余弦相似度之和[B, nc]
+                sim_heatmap: 归一化余弦相似度特征图, 可以用来可视化
+        """
+        feats = self.backbone(datas)  
+        pred, sim_heatmap = self.head.forward_with_protoheatmap(feats[-1])
+        return pred, sim_heatmap

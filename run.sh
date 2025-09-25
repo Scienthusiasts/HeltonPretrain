@@ -8,7 +8,12 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 cd /mnt/yht/code/HeltonPretrain
 
 
+# fcnet
+# /home/kpn/anaconda3/envs/yht_mmdet3.x/bin/python -m torch.distributed.launch --nproc_per_node=4 --nnodes=1 --master_port=29558 \
+#     runner.py \
+#     --config /mnt/yht/code/HeltonPretrain/configs/fcnet_ddp.py
 
+# protonet
 /home/kpn/anaconda3/envs/yht_mmdet3.x/bin/python -m torch.distributed.launch --nproc_per_node=4 --nnodes=1 --master_port=29558 \
     runner.py \
-    --config /mnt/yht/code/HeltonPretrain/configs/fcnet.py
+    --config /mnt/yht/code/HeltonPretrain/configs/protonet_ddp.py

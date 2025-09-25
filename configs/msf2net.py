@@ -22,8 +22,8 @@ model_cfgs = dict(
     backbone=dict(
         type="TIMMBackbone",
         model_name="resnet50.a1_in1k",
-        pretrained=True,
-        out_layers=[1, 2, 3, 4],
+        pretrained=r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt',
+        out_layers=[1,2,3,4],
         froze_backbone=False,
         load_ckpt=None
     ),

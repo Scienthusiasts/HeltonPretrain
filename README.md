@@ -18,7 +18,7 @@
 - `utils/eval_utils.py` (专用)
 - `utils/metrics.py` (专用)
 - `utils/hooks.py` (目前是通用)
-- `nregister.py` (通用)
+- `register.py` (通用)
 - `runner.py` (通用)
 - `infer.py` (专用)
 

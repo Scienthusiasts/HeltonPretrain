@@ -13,6 +13,7 @@ lr_decay = 1e-1
 load_ckpt = None
 log_interval = 50
 eval_interval = 1
+resume = None
 
 
 '''模型配置参数'''
@@ -22,10 +23,10 @@ model_cfgs = dict(
     backbone=dict(
         type="TIMMBackbone",
         model_name="resnet50.a1_in1k",
-        pretrained=False,
+        pretrained=r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt',
         out_layers=[4],
         froze_backbone=False,
-        load_ckpt=r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt'
+        load_ckpt=None
     ),
     head=dict(
         type="ProtoHead",

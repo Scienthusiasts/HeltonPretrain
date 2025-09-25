@@ -24,7 +24,6 @@ class TIMMBackbone(nn.Module):
         super().__init__()
         # features_only=True 直接去掉分类头
         self.backbone = timm.create_model(model_name, pretrained=pretrained, features_only=True, out_indices=out_layers)
-
         # 是否冻结backbone
         if froze_backbone:
             for param in self.backbone.parameters():
@@ -52,18 +51,15 @@ if __name__ == '__main__':
     # 配置字典
     cfg = {
         "type": "TIMMBackbone",
-        "model_name": "resnet50.a1_in1k",
-        "pretrained": True,
-        "out_layers": [4],
+        "model_name": "vit_small_patch16_dinov3.lvd1689m",
+        "pretrained": r"/mnt/yht/code/HeltonPretrain/ckpts/vit_small_patch16_dinov3.lvd1689m.pt",
+        "out_layers": [11],
         "froze_backbone": True,
         "load_ckpt": None
 
     }
     backbone = MODELS.build_from_cfg(cfg)
-    print(backbone)
-
-
-    x = torch.randn(2, 3, 1024, 1024)
+    x = torch.randn(2, 3, 256, 256)
     features = backbone(x)
     for i, f in enumerate(features):
         print(f"stage {i} output shape: {f.shape}")

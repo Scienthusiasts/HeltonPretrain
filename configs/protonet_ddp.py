@@ -1,37 +1,39 @@
 trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
 validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
 nc = 37
-mode = 'eval'
+mode = 'train_ddp'
 seed = 42
-log_dir = r'./log/fcnet_eval'
+log_dir = r'./log/protonet_train_ddp'
 img_size = [224, 224]
 epoch = 50
-bs = 64
+bs = 16
 lr = 1e-3
 warmup_lr = 1e-5
 lr_decay = 1e-1
-load_ckpt = r'/mnt/yht/code/HeltonPretrain/log/fcnet_train/2025-09-23-12-35-44_train/best_val_acc.pt'
+load_ckpt = None
 log_interval = 50
 eval_interval = 1
+resume = None
 
 
 '''模型配置参数'''
 model_cfgs = dict(
-    type="FCNet",
+    type="ProtoNet",
     load_ckpt=load_ckpt,
     backbone=dict(
         type="TIMMBackbone",
         model_name="resnet50.a1_in1k",
-        pretrained=False,
+        pretrained=r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt',
         out_layers=[4],
         froze_backbone=False,
-        load_ckpt=r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt'
+        load_ckpt=None
     ),
     head=dict(
-        type="MLPHead",
-        layers_dim=[2048, 256, nc], 
+        type="ProtoHead",
+        layers_dim=[2048, 1024, 256], 
+        nc=nc,
         cls_loss=dict(
-            type="CELoss"
+            type="MultiClassBCELoss"
         )
     )
 )
