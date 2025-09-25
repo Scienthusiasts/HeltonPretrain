@@ -1,8 +1,7 @@
 # this config file for eval only
-trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
 validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
 seed = 42
-log_dir = r'./log/zeroshot_clip_eval'
+log_dir = r'./log/zeroshot_openai_clip_eval'
 img_size = [224, 224]
 # clip_vitb32_512 clip_vitl14_768
 name = 'clip_vitl14_768' 

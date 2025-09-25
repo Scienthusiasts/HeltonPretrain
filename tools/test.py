@@ -40,7 +40,7 @@ def fuse_image_with_heatmap(image, heatmap, alpha=0.6, colormap=cv2.COLORMAP_JET
 
 
 
-def draw_fig(image, pred_score, pred_class, pred_conf, log_dir, top_k=10):
+def draw_fig(image, pred_score, pred_class, pred_conf, cat_names, log_dir, top_k=10):
     """plt可视化
     """
     # 排序类别（按置信度从大到小）
@@ -92,7 +92,7 @@ def infer_single_img(device, model, img_size, img_path, cat_names, log_dir, top_
     pred_class = cat_names[pred_label]
     pred_conf = float(pred_score[pred_label]) 
     # 可视化
-    draw_fig(image, pred_score, pred_class, pred_conf, log_dir, top_k)
+    draw_fig(image, pred_score, pred_class, pred_conf, cat_names, log_dir, top_k)
 
 
 
@@ -125,7 +125,37 @@ def infer_single_img_protonet(device, model, img_size, img_path, cat_names, log_
     pred_label_heatmap = (heatmap.squeeze(0)[pred_label].cpu().numpy() * 255).astype(np.uint8)
     resize_img = fuse_image_with_heatmap(resize_img, pred_label_heatmap, alpha=0.6)
     # 可视化
-    draw_fig(resize_img, pred_score, pred_class, pred_conf, log_dir, top_k)
+    draw_fig(resize_img, pred_score, pred_class, pred_conf, cat_names, log_dir, top_k)
+
+
+
+
+
+def infer_single_img_fgclip(device, model, img_size, img_path, captions, log_dir):
+    '''推理一张图片(经典图像分类任务)
+    '''
+    # 图像均值 标准差
+    mean = np.array([0.485, 0.456, 0.406]) 
+    std = np.array([[0.229, 0.224, 0.225]]) 
+
+    # 图像增强(预处理)实例
+    transform = Transforms(img_size=img_size)
+    model.eval()
+    # 读取图像, 并进行预处理
+    image = np.array(Image.open(img_path).convert('RGB'))
+    tensor_img = torch.tensor(transform.valid_transform(image=image)['image'])
+    resize_img = ((tensor_img.numpy() * std + mean) * 255).astype(np.uint8)
+    tensor_img = tensor_img.permute(2,0,1).unsqueeze(0).to(device)
+    # 推理
+    heatmap, patch_size = model.forward_dense_heatmap(device, tensor_img, captions)
+    heatmap = heatmap.reshape(patch_size, patch_size).cpu().numpy()
+    # 可视化
+    plt.imshow(heatmap)
+    plt.axis("off")
+    plt.tight_layout()
+    plt.savefig(f"{log_dir}/infer_result.png", dpi=200)
+
+
 
 
 
@@ -135,33 +165,57 @@ def infer_single_img_protonet(device, model, img_size, img_path, cat_names, log_
 
 
 if __name__ == '__main__':
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    log_dir = "./"
-    model_cfgs = {
-        "type": "ProtoNet",
-        "load_ckpt": r'/mnt/yht/code/HeltonPretrain/log/protonet_dinov3vits_train/2025-09-25-00-34-55_train/last.pt',
-        "backbone":{
-            "type": "TIMMBackbone",
-            "model_name": "vit_small_patch16_dinov3.lvd1689m",
-            "pretrained": r'/mnt/yht/code/HeltonPretrain/ckpts/vit_small_patch16_dinov3.lvd1689m.pt',
-            "out_layers": [11],
-            "froze_backbone": True,
-            "load_ckpt": None
-        },
-        "head":{
-            "type": "ProtoHead",
-            "layers_dim":[384, 256, 256], 
-            "nc":37,
-            "cls_loss": {
-                "type": "MultiClassBCELoss"
+    def f1():
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        log_dir = "./"
+        model_cfgs = {
+            "type": "ProtoNet",
+            "load_ckpt": r'/mnt/yht/code/HeltonPretrain/log/protonet_dinov3vits_train/2025-09-25-00-34-55_train/last.pt',
+            "backbone":{
+                "type": "TIMMBackbone",
+                "model_name": "vit_small_patch16_dinov3.lvd1689m",
+                "pretrained": r'/mnt/yht/code/HeltonPretrain/ckpts/vit_small_patch16_dinov3.lvd1689m.pt',
+                "out_layers": [11],
+                "froze_backbone": True,
+                "load_ckpt": None
+            },
+            "head":{
+                "type": "ProtoHead",
+                "layers_dim":[384, 256, 256], 
+                "nc":37,
+                "cls_loss": {
+                    "type": "MultiClassBCELoss"
+                }
             }
         }
-    }
-    model = MODELS.build_from_cfg(model_cfgs).to(device)
-    model.eval()
-    img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
-    all_entries = [d for d in os.listdir(img_dir) if os.path.isdir(os.path.join(img_dir, d)) and not d.startswith('.')]
-    cat_names = sorted(all_entries, key=natural_key)
-    img_size = [256, 256] # [512, 512]
-    img_path = rf"{img_dir}/Maine_Coon/Maine_Coon_6.jpg"
-    infer_single_img_protonet(device, model, img_size, img_path, cat_names, log_dir)
+        model = MODELS.build_from_cfg(model_cfgs).to(device)
+        model.eval()
+        img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
+        all_entries = [d for d in os.listdir(img_dir) if os.path.isdir(os.path.join(img_dir, d)) and not d.startswith('.')]
+        cat_names = sorted(all_entries, key=natural_key)
+        img_size = [256, 256] # [512, 512]
+        img_path = rf"{img_dir}/Maine_Coon/Maine_Coon_67.jpg"
+        infer_single_img_protonet(device, model, img_size, img_path, cat_names, log_dir)
+
+    def f2():
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # img_size = [224, 224]
+        # pretrain_path = r'/mnt/yht/code/HeltonPretrain/ckpts/hugging_face/models--qihoo360--fg-clip-base/snapshots/f30d2b82ba939fd54ca732426f99f4d6c3c92387'
+        # large
+        img_size = [336, 336]
+        pretrain_path = r'/mnt/yht/code/HeltonPretrain/ckpts/hugging_face/models--qihoo360--fg-clip-large/snapshots/19c2df7667052518ade09341652562b89b1332da'
+        log_dir = "./"
+        model_cfgs = {
+            "type": "Qihoo360FGCLIP",
+            "pretrain_path": pretrain_path
+        }
+        model = MODELS.build_from_cfg(model_cfgs).to(device)
+        model.eval()
+
+        img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
+        img_path = rf"{img_dir}/Egyptian_Mau/Egyptian_Mau_81.jpg"
+        captions = ["human hands"]
+        infer_single_img_fgclip(device, model, img_size, img_path, captions, log_dir)
+
+    
+    f2()
