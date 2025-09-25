@@ -272,7 +272,7 @@ class RunnerLogger:
         if not os.path.isdir(self.log_dir):os.makedirs(self.log_dir)
         # NOTE:多卡
         # 只在 local_rank 为 0 的进程中设置日志记录
-        if mode == 'train' or (mode == 'train_ddp' and dist.get_rank() == 0):
+        if mode in ['train', 'eval'] or (mode == 'train_ddp' and dist.get_rank() == 0):
             # 记录到log文件中的日志
             file_handler = logging.FileHandler(self.log_save_path, encoding="utf-8", mode="a")
             file_handler.setLevel(level=logging.INFO)

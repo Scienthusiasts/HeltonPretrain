@@ -6,6 +6,7 @@
 
 
 
+
 ## ✒️设计逻辑
 设计理念: 简洁版mm框架
 
@@ -18,9 +19,10 @@
 - `utils/eval_utils.py` (专用)
 - `utils/metrics.py` (专用)
 - `utils/hooks.py` (目前是通用)
-- `register.py` (通用)
-- `runner.py` (通用)
-- `infer.py` (专用)
+- `nregister.py` (通用)
+- `tools/train.py` (通用)
+- `tools/eval.py` (通用)
+- `tools/test.py` (专用)
 
 
 
@@ -40,7 +42,7 @@ pip install -e .
 
 ```
  # 注意修改config文件里对应参数, mode="train"
- python runner.py --config configs/fcnet.py
+ python tools/train.py --config configs/fcnet.py
 ```
 
 DDP 多卡训练 example
@@ -56,7 +58,7 @@ sh run.sh
 
 ```
  # 注意修改config文件里对应参数, mode="eval"
- python runner.py --config configs/fcnet.py
+ python tools/eval.py --config configs/fcnet.py
 ```
 
 
@@ -64,25 +66,18 @@ sh run.sh
 ## 🔥推理
 
 ```
-python infer.py 
+python tools/test.py 
 ```
 
 
 
-## 📃更新日志
-**update 25/9/24**
 
-- 代码重构 ✅
-- **支持注册机制(动态配置自定义参数文件), hook机制** ✨
-- **支持Pytorch DDP 分布式训练** ✨
-- 自动日志记录, 支持 `tensorboard` ✅
-- resume 中断恢复训练 ✅
-- 支持 scheduler (学习率decay) ✅
-- 兼容 `timm` 支持的 Backbone模型，可灵活更换 Backbone ✅
-- 兼容 `Albentation` 图像增强方法 ✅
-- 支持混淆矩阵, accuracy, f1score, mAP 等评估指标 ✅
-- 深度学习 Hello Word -> 支持图像分类任务 ✅
-- 各种表征学习自监督方法 (完善中...) ➡️
+
+## 📃更新日志
+|     时间     |                             详细                             |
+| :----------: | :----------------------------------------------------------: |
+| `2025/09/24` | ✅ 代码重构  ✨ **支持注册机制(动态配置自定义参数文件), hook机制**  ✨ **支持Pytorch DDP 分布式训练**  ✅ 自动日志记录, 支持 `tensorboard`  ✅ resume 中断恢复训练  ✅ 支持 scheduler (学习率decay)  ✅ 兼容 `timm` 支持的 Backbone模型，可灵活更换 Backbone  ✅ 兼容 `Albentation` 图像增强方法  ✅ 支持混淆矩阵, accuracy, f1score, mAP 等评估指标  ✅ 深度学习 Hello Word -> 支持图像分类任务  ➡️ 各种表征学习自监督方法 (完善中...) |
+| `2025/09/25` |    ✅ 添加 openai-clip 基础模型、 clip-zero-shot 分类模型     |
 
 
 

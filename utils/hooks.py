@@ -43,7 +43,7 @@ def hook_after_eval(runner):
     # 评估
     evaluations, flag_metric_name = eval_epoch(
         runner.device, runner.model, runner.valid_dataloader,
-        runner.train_dataset.cat_names, runner.log_dir
+        runner.valid_dataset.cat_names, runner.log_dir
     )
     # 记录/打印日志
     runner.runner_logger.train_epoch_log_printer(runner.cur_epoch, evaluations, flag_metric_name)

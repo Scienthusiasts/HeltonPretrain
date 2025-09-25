@@ -38,6 +38,9 @@ class MLPHead(nn.Module):
             if i < len(layers_dim) - 2:  
                 layers.append(nn.BatchNorm1d(out_dim))
                 layers.append(nn.ReLU(inplace=True))
+        # 参数为空时
+        if len(layers) == 0:
+            layers.append(nn.Identity())
 
         return nn.Sequential(*layers)
 
@@ -78,8 +81,9 @@ class MLPHead(nn.Module):
 
 # for test only:
 if __name__ == '__main__':
+    cls_loss = nn.CrossEntropyLoss()
     x = torch.randn(2, 2048)
-    mlp = MLPHead([2048, 256, 10])
+    mlp = MLPHead([], cls_loss)
     print(mlp)
     out = mlp(x)
     print(out.shape)  # torch.Size([2, 10])

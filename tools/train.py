@@ -20,12 +20,12 @@ from register import MODELS, DATASETS, OPTIMIZERS
 
 
 
-class Runner():
+class Train():
     """整合训练/验证/推理时的抽象流程"""
     def __init__(self, mode, epoch, seed, log_dir, log_interval, eval_interval, resume_path, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs):
         """初始化各种模块
             Args:
-                mode:           train, train_ddp, eval, test, ...
+                mode:           train, train_ddp
                 epoch:          训练多少轮
                 seed:           全局种子
                 log_dir:
@@ -107,15 +107,14 @@ class Runner():
         self.scheduler = SCHEDULERS.build_from_cfg(scheduler_cfgs["warmup_schedulers_cfgs"], base_scheduler=base_scheduler, optimizer=self.optimizer)
 
         '''日志模块'''
-        if mode in ['train', 'train_ddp', 'eval']:
-            self.runner_logger = RunnerLogger(self.mode, self.log_dir, log_interval, eval_interval, self.train_batch_num)
-            self.log_dir = self.runner_logger.log_dir
+        self.runner_logger = RunnerLogger(self.mode, self.log_dir, log_interval, eval_interval, self.train_batch_num)
+        self.log_dir = self.runner_logger.log_dir
 
         '''Hook 管理'''
         self._hooks = {}
 
         # resume
-        if resume_path and self.mode in ['train', 'train_ddp']:
+        if resume_path:
             self.start_epoch = train_resume(resume_path, self.model, self.optimizer, self.scheduler, self.runner_logger, self.train_batch_num)
          # 打印模型详细信息
         if self.mode == 'train' or (self.mode == 'train_ddp' and dist.get_rank() == 0):
@@ -208,7 +207,7 @@ if __name__ == '__main__':
     # 使用动态导入模块导入参数文件
     cargs = dynamic_import_class(config_path, get_class=False)
     # 初始化runner
-    runner = Runner(cargs.mode, cargs.epoch, cargs.seed, cargs.log_dir, cargs.log_interval, cargs.eval_interval, 
+    runner = Train(cargs.mode, cargs.epoch, cargs.seed, cargs.log_dir, cargs.log_interval, cargs.eval_interval, 
                     cargs.resume, cargs.model_cfgs, cargs.dataset_cfgs, cargs.optimizer_cfgs, cargs.scheduler_cfgs)
     # 注册 Hook
     runner.register_hook("after_batch", hook_after_batch)
@@ -219,8 +218,6 @@ if __name__ == '__main__':
         # 拷贝一份当前训练对应的config文件(方便之后查看细节)
         shutil.copy(config_path, os.path.join(runner.log_dir, os.path.basename(config_path)))
         runner.fit()
-    if cargs.mode == 'eval':
-        runner.eval()
 
 
 
