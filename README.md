@@ -29,7 +29,9 @@
 ## 🔧安装
 
 ```
+conda create -n hp python=3.10
 cd HeltonPretrain
+pip install -r requirements.txt
 pip install -e .
 ```
 

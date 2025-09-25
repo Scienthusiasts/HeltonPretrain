@@ -57,7 +57,7 @@ class ProtoNet(nn.Module):
                 datas:       dataloader传来的图像+标签
             Returns:
                 pred:        逐类别特征图的余弦相似度之和[B, nc]
-                sim_heatmap: 归一化余弦相似度特征图, 可以用来可视化
+                sim_heatmap: 余弦相似度特征图, 可以用来可视化
         """
         feats = self.backbone(datas)  
         pred, sim_heatmap = self.head.forward_with_protoheatmap(feats[-1])

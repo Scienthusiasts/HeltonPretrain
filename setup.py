@@ -10,6 +10,6 @@ setup(
         "torchvision>=0.14.1",
         "timm>=0.9.0",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     description="HeltonDL Project",
 )

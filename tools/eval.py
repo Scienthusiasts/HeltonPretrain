@@ -4,7 +4,6 @@ import json
 import torch
 import shutil
 import numpy as np
-from tqdm import tqdm
 from functools import partial
 from torch.utils.data import DataLoader
 from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class

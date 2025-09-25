@@ -59,6 +59,7 @@ class Train():
 
         '''导入网络'''
         self.model = MODELS.build_from_cfg(model_cfgs)
+        # self.model = torch.compile(self.model)
         if self.mode=='train_ddp':
             # 多卡时同步BN
             self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model).cuda(self.local_rank)
