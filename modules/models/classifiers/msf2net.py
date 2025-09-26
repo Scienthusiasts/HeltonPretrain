@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import timm
 import torch.distributed as dist
+from utils.utils import load_state_dict_with_prefix
 # 注册机制
 from register import MODELS
 
@@ -26,8 +27,7 @@ class MSF2Net(nn.Module):
         self.head = head
         # 是否导入预训练权重
         if load_ckpt: 
-            # self.load_state_dict(torch.load(load_ckpt, map_location='cuda:{}'.format(dist.get_rank())))
-            self.load_state_dict(torch.load(load_ckpt))
+            self = load_state_dict_with_prefix(self, load_ckpt, ['model.'])
 
 
     def forward(self, datas, return_loss=False):

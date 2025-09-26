@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import timm
 import torch.distributed as dist
+
+from utils.utils import load_state_dict_with_prefix
 # 注册机制
 from register import MODELS
 
@@ -24,15 +26,14 @@ class TIMMBackbone(nn.Module):
         super().__init__()
         # features_only=True 直接去掉分类头
         self.backbone = timm.create_model(model_name, pretrained=pretrained, features_only=True, out_indices=out_layers)
+        # 是否导入预训练权重
+        if load_ckpt:
+            self.backbone = load_state_dict_with_prefix(self.backbone, load_ckpt, ['model.'])
+
         # 是否冻结backbone
         if froze_backbone:
             for param in self.backbone.parameters():
                 param.requires_grad_(False)
-
-        # 是否导入预训练权重
-        if load_ckpt: 
-            # self.load_state_dict(torch.load(load_ckpt, map_location='cuda:{}'.format(dist.get_rank())))
-            self.load_state_dict(torch.load(load_ckpt))
 
     def forward(self, x):
         """
@@ -49,17 +50,20 @@ class TIMMBackbone(nn.Module):
 
 if __name__ == '__main__':
     # 配置字典
-    cfg = {
-        "type": "TIMMBackbone",
-        "model_name": "vit_small_patch16_dinov3.lvd1689m",
-        "pretrained": r"/mnt/yht/code/HeltonPretrain/ckpts/vit_small_patch16_dinov3.lvd1689m.pt",
-        "out_layers": [11],
-        "froze_backbone": True,
-        "load_ckpt": None
+    # cfg = {
+    #     "type": "TIMMBackbone",
+    #     "model_name": "vit_huge_plus_patch16_dinov3.lvd1689m",
+    #     "pretrained": True,
+    #     "out_layers": [11],
+    #     "froze_backbone": True,
+    #     "load_ckpt": None
 
-    }
-    backbone = MODELS.build_from_cfg(cfg)
-    x = torch.randn(2, 3, 256, 256)
-    features = backbone(x)
-    for i, f in enumerate(features):
-        print(f"stage {i} output shape: {f.shape}")
+    # }
+    # backbone = MODELS.build_from_cfg(cfg)
+    # x = torch.randn(2, 3, 256, 256)
+    # features = backbone(x)
+    # for i, f in enumerate(features):
+    #     print(f"stage {i} output shape: {f.shape}")
+    m = timm.create_model("vit_huge_plus_patch16_dinov3.lvd1689m", pretrained=True)
+    print(m)
+    torch.save(m.state_dict(), './ckpts/vit_huge_plus_patch16_dinov3.lvd1689m.pt')

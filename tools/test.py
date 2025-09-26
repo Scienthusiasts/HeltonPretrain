@@ -199,11 +199,11 @@ if __name__ == '__main__':
 
     def f2():
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # img_size = [224, 224]
-        # pretrain_path = r'/mnt/yht/code/HeltonPretrain/ckpts/hugging_face/models--qihoo360--fg-clip-base/snapshots/f30d2b82ba939fd54ca732426f99f4d6c3c92387'
+        img_size = [224, 224]
+        pretrain_path = r'/mnt/yht/code/HeltonPretrain/ckpts/hugging_face/models--qihoo360--fg-clip-base/snapshots/f30d2b82ba939fd54ca732426f99f4d6c3c92387'
         # large
-        img_size = [336, 336]
-        pretrain_path = r'/mnt/yht/code/HeltonPretrain/ckpts/hugging_face/models--qihoo360--fg-clip-large/snapshots/19c2df7667052518ade09341652562b89b1332da'
+        # img_size = [336, 336]
+        # pretrain_path = r'/mnt/yht/code/HeltonPretrain/ckpts/hugging_face/models--qihoo360--fg-clip-large/snapshots/19c2df7667052518ade09341652562b89b1332da'
         log_dir = "./"
         model_cfgs = {
             "type": "Qihoo360FGCLIP",
@@ -213,8 +213,8 @@ if __name__ == '__main__':
         model.eval()
 
         img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
-        img_path = rf"{img_dir}/Egyptian_Mau/Egyptian_Mau_81.jpg"
-        captions = ["human hands"]
+        img_path = rf"{img_dir}/Ragdoll/Ragdoll_259.jpg"
+        captions = ["the deep blue eyes of the cat in the picture."]
         infer_single_img_fgclip(device, model, img_size, img_path, captions, log_dir)
 
     

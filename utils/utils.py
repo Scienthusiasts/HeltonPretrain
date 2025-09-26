@@ -7,6 +7,108 @@ import argparse
 import importlib
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import RandomSampler
+import torch.distributed as dist
+
+
+
+def load_state_dict_with_prefix(model, load_ckpt, prefixes_to_try=['model.', 'module.', 'encoder.', 'backbone.', 'teacher.', 'student.']):
+    """自动处理权重键名前缀不匹配问题（双向适配）
+    Args:
+        model: 要加载权重的模型
+        load_ckpt: 权重文件路径
+        prefixes_to_try: 要尝试的前缀列表，默认包含常见的训练保存前缀
+    Returns:
+        加载了权重的模型
+    """
+    state_dict = torch.load(load_ckpt, map_location='cpu')
+    use_ddp = dist.is_initialized()
+    
+    # 首先提取模型权重（处理checkpoint中可能包含的其他信息）
+    if 'model_state_dict' in state_dict:
+        state_dict = state_dict['model_state_dict']
+    elif 'model' in state_dict:
+        state_dict = state_dict['model']
+    elif 'state_dict' in state_dict:
+        state_dict = state_dict['state_dict']
+    
+    model_state_dict = model.state_dict()
+
+    if not use_ddp or use_ddp and dist.get_rank() == 0:
+        print(f"模型键数量: {len(model_state_dict)}, 权重键数量: {len(state_dict)}")
+    
+    # 尝试不同的前缀匹配策略
+    best_match_ratio = 0
+    best_state_dict = None
+    best_strategy = "原始匹配"
+    
+    # 策略1: 原始匹配（不处理前缀）
+    matching_keys = set(model_state_dict.keys()) & set(state_dict.keys())
+    match_ratio = len(matching_keys) / len(model_state_dict) if model_state_dict else 0
+    if match_ratio > best_match_ratio:
+        best_match_ratio = match_ratio
+        best_state_dict = state_dict
+        best_strategy = "原始匹配"
+    
+    # 策略2: 去除权重中的前缀（权重比模型多前缀）
+    for prefix in prefixes_to_try:
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            if key.startswith(prefix):
+                new_key = key[len(prefix):]
+                new_state_dict[new_key] = value
+            else:
+                new_state_dict[key] = value
+        
+        matching_keys = set(model_state_dict.keys()) & set(new_state_dict.keys())
+        match_ratio = len(matching_keys) / len(model_state_dict) if model_state_dict else 0
+        
+        if match_ratio > best_match_ratio:
+            best_match_ratio = match_ratio
+            best_state_dict = new_state_dict
+            best_strategy = f"去除权重前缀 '{prefix}'"
+    
+    # 策略3: 为权重添加前缀（模型比权重多前缀）
+    for prefix in prefixes_to_try:
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            new_key = prefix + key
+            new_state_dict[new_key] = value
+        
+        matching_keys = set(model_state_dict.keys()) & set(new_state_dict.keys())
+        match_ratio = len(matching_keys) / len(model_state_dict) if model_state_dict else 0
+        
+        if match_ratio > best_match_ratio:
+            best_match_ratio = match_ratio
+            best_state_dict = new_state_dict
+            best_strategy = f"添加权重前缀 '{prefix}'"
+    
+    if not use_ddp or use_ddp and dist.get_rank() == 0:
+        print(f"最佳匹配策略: {best_strategy}, 匹配度: {best_match_ratio:.1%}")
+    
+    # 使用最佳匹配策略加载权重
+    missing_keys, unexpected_keys = model.load_state_dict(best_state_dict, strict=False)
+    
+    # 详细输出匹配情况
+    if not use_ddp or use_ddp and dist.get_rank() == 0:
+        if missing_keys:
+            print(f"⚠️  缺失的键 ({len(missing_keys)}个):")
+            for key in missing_keys[:5]:  # 只显示前5个
+                print(f"   - {key}")
+            if len(missing_keys) > 5:
+                print(f"   ... 还有 {len(missing_keys) - 5} 个")
+        
+        if unexpected_keys:
+            print(f"⚠️  多余的键 ({len(unexpected_keys)}个):")
+            for key in unexpected_keys[:5]:  # 只显示前5个
+                print(f"   - {key}")
+            if len(unexpected_keys) > 5:
+                print(f"   ... 还有 {len(unexpected_keys) - 5} 个")
+        
+        print(f"✅ 权重加载完成 - 匹配度: {best_match_ratio:.1%}")
+    
+    return model
+
+
 
 
 
@@ -27,7 +129,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, help='config file path')
     # 多卡
-    parser.add_argument("--local_rank", default=-1, type=int)
+    parser.add_argument("--local-rank", default=-1, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
     args = parser.parse_args()
     return args

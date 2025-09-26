@@ -23,10 +23,10 @@ model_cfgs = dict(
     backbone=dict(
         type="TIMMBackbone",
         model_name="resnet50.a1_in1k",
-        pretrained=r'/mnt/yht/code/HeltonPretrain/ckpts/resnet50.a1_in1k.pt',
+        pretrained=False,
         out_layers=[4],
         froze_backbone=False,
-        load_ckpt=None
+        load_ckpt=r'/mnt/yht/code/HeltonPretrain/ckpts/backbone_resnet50.a1_in1k.pt'
     ),
     head=dict(
         type="ProtoHead",

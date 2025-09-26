@@ -12,8 +12,16 @@ class Transforms():
        https://albumentations.ai/docs/api_reference/full_reference/
     '''
     def __init__(self, img_size):
+        # OpenAI-CLIP:
         self.img_mean = (0.48145466, 0.4578275, 0.40821073)
         self.img_std = (0.26862954, 0.26130258, 0.27577711)
+        # DINOv3 LVD-1689M:
+        # self.img_mean = (0.485, 0.456, 0.406)
+        # self.img_std = (0.229, 0.224, 0.225)
+        # DINOv3 SAT-493M:
+        # self.img_mean = (0.430, 0.411, 0.296)
+        # self.img_std = (0.213, 0.156, 0.143)
+
         self.pad_value = [128,128,128]
         self.CoarseDropout = A.Compose([
                 # 随机掩码 (第一个针对分类任务效果好些)

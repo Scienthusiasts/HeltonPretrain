@@ -16,7 +16,6 @@ class Qihoo360FGCLIP(nn.Module):
     def __init__(self, pretrain_path):
         """初始化
             Args:
-                img_size:      输入图像尺寸
                 pretrain_path: CLIP的权重路径
         """
         super(Qihoo360FGCLIP, self).__init__()
@@ -80,7 +79,7 @@ class Qihoo360FGCLIP(nn.Module):
 
         
     def forward_dense_heatmap(self, device, imgs, captions):
-        """前向, 调用openai-clip图像编码器
+        """前向, 调用fgclip图像编码器, 生成dense_img_embs与text_embs的余弦相似度
             Args:
                 imgs:     [B, 3, H, W]
                 captions: list[str1, ..., strN]
@@ -154,6 +153,23 @@ if __name__ == '__main__':
         "You're the best, my good cat.",
         "the cat is staring at me, want something to eat.",
         "My neighbour's cat, it looks funny.",
+        "An elegant cat posing gracefully for the camera.",
+        "This cat always greets me when I come home from work.",
+        "The cat I rescued from the shelter last month.",
+        "My cat waiting patiently for dinner time.",
+        "The cat that helped me through difficult times.",
+        "A cat communicating through its expressive body language.",
+        "this cat, A loyal companion with eyes full of devotion.",
+        "A mischievous little cat, always getting into something new.",
+        "Caught in the act! My cat staring guiltily at the mess it just made.",
+        "my cat, The best welcome home committee, always waiting at the door.", 
+        "My shadow, following me from room to room throughout the day.",
+        "A blur of energy, the cat racing across the yard at full speed.",
+        "A candid moment, this cat completely unaware of the camera.",
+        "A calming influence, this cat knowing how to soothe a bad day.",
+        "An unexpected friendship that grew into an unbreakable bond, my cat.",
+        "The simple pleasure of watching my cat enjoy the sunshine.",
+        "The first picture I took before we brought the cat home." 
     ]
     img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
     img_path = rf"{img_dir}/Maine_Coon/Maine_Coon_6.jpg"

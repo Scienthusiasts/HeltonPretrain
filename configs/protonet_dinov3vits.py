@@ -23,10 +23,10 @@ model_cfgs = dict(
     backbone=dict(
         type="TIMMBackbone",
         model_name="vit_small_patch16_dinov3.lvd1689m",
-        pretrained=r'/mnt/yht/code/HeltonPretrain/ckpts/vit_small_patch16_dinov3.lvd1689m.pt',
+        pretrained=False,
         out_layers=[11],
         froze_backbone=True,
-        load_ckpt=None
+        load_ckpt=r'/mnt/yht/code/HeltonPretrain/ckpts/backbone_vit_small_patch16_dinov3.lvd1689m.pt'
     ),
     head=dict(
         type="ProtoHead",
