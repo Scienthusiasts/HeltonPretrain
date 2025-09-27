@@ -27,7 +27,7 @@ class ProtoHead(nn.Module):
         self.clsLoss = cls_loss
         # 权重初始化
         init_weights(self.mlp, 'normal', 0.01)
-        # init_weights(self.prototypes, 'normal', 0.01)
+        nn.init.trunc_normal_(self.prototypes, std=0.02)
 
 
 

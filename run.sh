@@ -19,6 +19,12 @@ cd /mnt/yht/code/HeltonPretrain
 
 
 # protonet_dinov3_vits
+# /mnt/yht/env/yht_pretrain/bin/python -m torch.distributed.launch --nproc_per_node=4 --nnodes=1 --master_port=29558 \
+#     tools/train.py \
+#     --config /mnt/yht/code/HeltonPretrain/configs/protonet_dinov3vits_ddp.py
+
+
+# mlpnet_dinov3vits_vithead_ddp
 /mnt/yht/env/yht_pretrain/bin/python -m torch.distributed.launch --nproc_per_node=4 --nnodes=1 --master_port=29558 \
     tools/train.py \
-    --config /mnt/yht/code/HeltonPretrain/configs/protonet_dinov3vits_ddp.py
+    --config /mnt/yht/code/HeltonPretrain/configs/mlpnet_dinov3vits_vithead_ddp.py

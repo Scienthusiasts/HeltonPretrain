@@ -1,16 +1,18 @@
+# trainset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/train'
+# validset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
 trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
 validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
 nc = 37
 mode = 'train_ddp'
 seed = 42
-log_dir = r'./log/protonet_dinov3vits_train_ddp'
-img_size = [256, 256]
+log_dir = r'./log/mlpnet_dinov3vits_vithead_train_ddp'
+img_size = [224, 224]
 epoch = 50
 bs = 16
-lr = 1e-3
+lr = 1e-3  # 使用transformer结构的head好像学习率不能太大, 否则容易训崩
 warmup_lr = 1e-5
 lr_decay = 1e-1
-load_ckpt = None # r'/mnt/yht/code/HeltonPretrain/log/protonet_dinov3vits_train/2025-09-25-00-34-55_train/last.pt'
+load_ckpt = None
 log_interval = 50
 eval_interval = 1
 resume = None
@@ -18,7 +20,7 @@ resume = None
 
 '''模型配置参数'''
 model_cfgs = dict(
-    type="ProtoNet",
+    type="MLPNet",
     load_ckpt=load_ckpt,
     backbone=dict(
         type="TIMMBackbone",
@@ -29,11 +31,14 @@ model_cfgs = dict(
         load_ckpt=r'/mnt/yht/code/HeltonPretrain/ckpts/backbone_vit_small_patch16_dinov3.lvd1689m.pt'
     ),
     head=dict(
-        type="ProtoHead",
-        layers_dim=[384, 256, 256], 
-        nc=nc,
+        type="ViTHead",
+        nc=nc, 
+        in_dim=384, 
+        num_heads=8, 
+        mlp_ratio=4.0, 
+        dropout=0.0,
         cls_loss=dict(
-            type="MultiClassBCELoss"
+            type="CELoss"
         )
     )
 )

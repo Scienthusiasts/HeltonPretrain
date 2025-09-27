@@ -7,6 +7,7 @@ from utils.utils import load_state_dict_with_prefix
 from register import MODELS
 
 
+
 @MODELS.register
 class ProtoNet(nn.Module):
     """Prototype Network for Image Classification

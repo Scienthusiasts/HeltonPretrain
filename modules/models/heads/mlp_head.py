@@ -19,6 +19,8 @@ class MLPHead(nn.Module):
         '''
         super(MLPHead, self).__init__()
         '''网络组件'''
+        # 无论最后尺寸多大，都池化成1x1,这样输入的图像尺寸就可以是任意大小,但必须大于224x224
+        self.gap = nn.AdaptiveAvgPool2d(1)
         self.mlp = self.make_layers(layers_dim)
         '''损失函数'''
         self.clsLoss = cls_loss
@@ -47,10 +49,12 @@ class MLPHead(nn.Module):
 
     def forward(self, x):
         '''前向传播
-            x: 输入维度必须是[B, C]
+            x: 输入维度必须是[B, C, H, W]
         '''
+        # 特征池化后接MLP层
+        x = self.gap(x).flatten(1)
         return self.mlp(x)
-    
+
 
     def loss(self, x, y):
         '''前向传播+计算损失(训练时使用)
