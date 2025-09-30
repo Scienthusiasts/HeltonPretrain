@@ -30,27 +30,45 @@ class DINOv3(nn.Module):
         # 是否导入权重:
         if load_ckpt:
             self.dinov3 = load_state_dict_with_prefix(self.dinov3, load_ckpt, prefixes_to_try=['model.'])
-
-
         self.dinov3.eval()
 
+        for param in self.dinov3.parameters():
+            param.requires_grad_(False)
 
-    def forward(self, x):
+    def forward(self, x, type='image', *args, **kwargs):
+        '''前向, 调用fgclip图像和文本编码器(API接口, 外部调用此方法)
+        '''
+        if type == 'image':
+            embs = self._forward_img(x)
+        if type == 'image_dense':
+            embs = self._forward_img_dense(x)
+        return embs
+
+
+    def _forward_img(self, x):
         '''前向
+            Args:
+                x: [B, 3, H, W]
+            Returns:
+                img_embs: [B, dim=1280]
         '''
         with torch.no_grad():
             x = self.dinov3(x) 
         return x
 
 
-    def forward_dense(self, x):
+    def _forward_img_dense(self, x):
         '''前向
+            Args:
+                x: [B, 3, H, W]
+            Returns:
+                feature_map: [B, dim=1280, H, W]
         '''
         B, C, H, W = x.shape
         with torch.no_grad():
             x = self.dinov3.forward_features(x) 
             special_tokens, feature_map = self.split_vit_output(x, H//16, W//16)
-        return special_tokens, feature_map
+        return feature_map
 
 
         
@@ -126,7 +144,7 @@ if __name__ == '__main__':
     # 图像预处理
     transform = Transforms(img_size)
     tensor_img = torch.tensor(transform.valid_transform(image=image)['image']).permute(2,0,1).unsqueeze(0).to(device)
-    special_tokens, feature_map = model.forward_dense(tensor_img)
+    special_tokens, feature_map = model.forward(tensor_img, type='image_dense')
     # 与指定位置的注意力图
     row, col = 21,21
     heatmap = model.cosine_similarity_map(feature_map, row, col).squeeze(0).cpu().numpy()

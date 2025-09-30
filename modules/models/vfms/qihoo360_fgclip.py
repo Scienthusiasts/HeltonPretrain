@@ -24,15 +24,19 @@ class Qihoo360FGCLIP(nn.Module):
         self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path)
         self.image_processor = AutoImageProcessor.from_pretrained(pretrain_path)
         self.walk_short_pos = True
+        
+        for param in self.clip_model.parameters():
+            param.requires_grad_(False)
 
-
-    def forward(self, device, x, modality='image'):
-        '''前向, 调用fgclip图像和文本编码器
+    def forward(self, x, type='image', device='cpu', *args, **kwargs):
+        '''前向, 调用fgclip图像和文本编码器(API接口, 外部调用此方法)
         '''
         self.device = device
-        if modality == 'image':
+        if type == 'image':
             embs = self._forward_img(x)
-        if modality == 'text':
+        if type == 'image_dense':
+            embs = self._forward_img_dense(x)
+        if type == 'text':
             embs = self._forward_text(x)
         return embs
 

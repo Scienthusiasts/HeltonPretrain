@@ -42,3 +42,22 @@ class MultiClassBCELoss(nn.Module):
         onehot_labels.scatter_(1, labels.unsqueeze(1), 1.0) 
         loss = self.loss(scores, onehot_labels)
         return loss
+    
+
+
+@MODELS.register
+class SmoothL1Loss(nn.Module):
+    '''SmoothL1Loss
+    '''
+    def __init__(self):
+        super(SmoothL1Loss, self).__init__()
+        self.loss = nn.SmoothL1Loss()
+    
+    def forward(self, x, y):
+        """
+        Args:
+            x: [B, D] 
+            y: [B, D]
+        """
+        loss = self.loss(x, y)
+        return loss
