@@ -151,6 +151,10 @@ class Train():
         # 将上一次迭代计算的梯度清零 
         self.optimizer.zero_grad()
         # 反向传播
+        self.losses["total_loss"] = sum(
+            v for v in self.losses.values()
+            if torch.is_tensor(v) and v.requires_grad
+        )
         self.losses['total_loss'].backward()
         # 更新权重
         self.optimizer.step()

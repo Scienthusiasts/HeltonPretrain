@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from register import MODELS
+from utils.utils import NoSaveWrapper
 
 
 
@@ -13,7 +15,7 @@ class TeacherDistillLoss1D(nn.Module):
         """
         """
         super(TeacherDistillLoss1D, self).__init__()
-        self.teacher = teacher.eval()
+        self._teacher = NoSaveWrapper(teacher.eval())
         # self.proj用于对齐学生和教师输出特征的维度
         self._proj = nn.Linear(s_dim, t_dim) if s_dim!=t_dim else nn.Identity()
         self.distill_loss = distill_loss
@@ -32,11 +34,6 @@ class TeacherDistillLoss1D(nn.Module):
         return loss
 
 
-    def state_dict(self, *args, **kwargs):
-        # 过滤掉带 _no_state_dict 标记的层
-        orig = super().state_dict(*args, **kwargs)
-        return {k: v for k, v in orig.items() if "_proj" not in k and "teacher" not in k}
-
 
 
 
@@ -49,7 +46,7 @@ class TeacherDistillLoss2D(nn.Module):
         """
         """
         super(TeacherDistillLoss2D, self).__init__()
-        self._teacher = teacher.eval()
+        self._teacher = NoSaveWrapper(teacher.eval())
         # self.proj用于对齐学生和教师输出特征的维度
         self._proj = nn.Conv2d(s_dim, t_dim, 1) if s_dim!=t_dim else nn.Identity()
         self.distill_loss = distill_loss
@@ -69,14 +66,13 @@ class TeacherDistillLoss2D(nn.Module):
         # 空间尺寸对齐
         if sh!=th or sw!=tw:
             students_embs = F.interpolate(students_embs, size=(th, tw), mode="bilinear", align_corners=False)
+
+        B, C, H, W = teacher_embs.shape
+        students_embs = students_embs.reshape(B, C, -1)
+        teacher_embs = teacher_embs.reshape(B, C, -1)
         loss = self.distill_loss(students_embs, teacher_embs)
         return loss
 
-
-    def state_dict(self, *args, **kwargs):
-        # 过滤掉带 _no_state_dict 标记的层
-        orig = super().state_dict(*args, **kwargs)
-        return {k: v for k, v in orig.items() if "_proj" not in k and "_teacher" not in k}
 
 
 

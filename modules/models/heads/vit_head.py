@@ -214,7 +214,6 @@ class ViTHead(nn.Module):
         acc = sum(pred_labels==y) / y.shape[0]
         # 组织成字典形式返回
         losses = dict(
-            total_loss = cls_loss,
             cls_loss = cls_loss,
             acc = acc
         )

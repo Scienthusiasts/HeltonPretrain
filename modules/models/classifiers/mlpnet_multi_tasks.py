@@ -8,11 +8,10 @@ from register import MODELS
 
 
 @MODELS.register
-class MLPDistillNet(nn.Module):
-    """经典图像分类网络
-
+class MLPNetMultiTasks(nn.Module):
     """
-    def __init__(self, backbone:nn.Module, head:nn.Module, distill_loss:nn.Module, load_ckpt=None):
+    """
+    def __init__(self, backbone:nn.Module, cls_head:nn.Module, emb_head:nn.Module, load_ckpt=None, ensemble_pred=False):
         """
         Args:
             backbone:  网络的骨干部分
@@ -20,10 +19,11 @@ class MLPDistillNet(nn.Module):
             load_ckpt: 是否加载本地预训练权重(自定义权重)
         """
         super().__init__()
+        self.ensemble_pred = ensemble_pred
         # 网络模块
         self.backbone = backbone
-        self.head = head
-        self.distill_loss = distill_loss
+        self.cls_head = cls_head
+        self.emb_head = emb_head
         # 是否导入预训练权重
         if load_ckpt: 
             self = load_state_dict_with_prefix(self, load_ckpt, ['model.'])
@@ -41,15 +41,18 @@ class MLPDistillNet(nn.Module):
         if not return_loss:
             # feats是多尺度特征图
             feats = self.backbone(datas)  
-            pred = self.head(feats[-1])
-            return pred
-        
+            cls_logits = self.cls_head(feats[-1])
+            if self.ensemble_pred:
+                emb_logits = self.emb_head(feats[-1])
+                return 0.5 * (cls_logits + emb_logits)
+            else:
+                return cls_logits
         else:
             x, y = datas[0], datas[1]
             feats = self.backbone(x)  
-            # dense 蒸馏损失
-            distill_loss = self.distill_loss(x.device, x, feats[-1])
-            losses = self.head.loss(feats[-1], y)
-            losses['distill_loss'] = distill_loss * 10
+            cls_losses = self.cls_head.loss(feats[-1], y)
+            emb_losses = self.emb_head.loss(feats[-1], y, x)
+            # 合并两个损失(如果键重复, 后面的字典会覆盖前面的值)
+            losses = cls_losses | emb_losses
             return losses
 

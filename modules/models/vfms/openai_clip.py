@@ -21,7 +21,8 @@ class OpenAICLIP(nn.Module):
         super(OpenAICLIP, self).__init__()
         # model
         self.clip_model, self.preprocess = clip.load(pretrain_path)
-        self.clip_model.eval()
+        # half转全精度
+        self.clip_model.eval().float()
 
         for param in self.clip_model.parameters():
             param.requires_grad_(False)

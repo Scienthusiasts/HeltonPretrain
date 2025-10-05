@@ -86,7 +86,7 @@ class DINOv3(nn.Module):
         """
         B, N, C = x.shape
         assert N == h * w + num_extra_tokens, f"输入序列长度 {N} 不等于 {h*w + num_extra_tokens}"
-        # 前 num_extra_tokens 是 cls + register tokens
+        # 前 num_extra_tokens 是 cls token(1) + register tokens(4)
         special_tokens = x[:, :num_extra_tokens, :]  # (BS, 65, 1280)
         # 后面是 patch tokens，reshape 成 feature map
         patch_tokens = x[:, num_extra_tokens:, :]  # (BS, 256, 1280)
@@ -134,8 +134,10 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     img_size = [1024, 1024] 
     img_dir = '/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/train'
-    # model = DINOv3("vit_huge_plus_patch16_dinov3.lvd1689m", pretrained=False, load_ckpt='ckpts/vit_huge_plus_patch16_dinov3.lvd1689m.pt').to(device)
-    model = DINOv3("vit_small_patch16_dinov3.lvd1689m", pretrained=False, load_ckpt='ckpts/backbone_vit_small_patch16_dinov3.lvd1689m.pt').to(device)
+    # model = DINOv3("vit_huge_plus_patch16_dinov3.lvd1689m", pretrained=False, load_ckpt='ckpts/backbone_vit_huge_plus_patch16_dinov3.lvd1689m.pt').to(device)
+    # model = DINOv3("vit_huge_plus_patch16_dinov3.lvd1689m", pretrained=True, load_ckpt=None).to(device)
+    # model = DINOv3("vit_small_patch16_dinov3.lvd1689m", pretrained=False, load_ckpt='ckpts/backbone_vit_small_patch16_dinov3.lvd1689m.pt').to(device)
+    model = DINOv3("vit_small_patch16_dinov3.lvd1689m", pretrained=True, load_ckpt=None).to(device)
     print(model)
     img_dir = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
     img_path = rf"{img_dir}/Maine_Coon/Maine_Coon_41.jpg"
@@ -144,9 +146,11 @@ if __name__ == '__main__':
     # 图像预处理
     transform = Transforms(img_size)
     tensor_img = torch.tensor(transform.valid_transform(image=image)['image']).permute(2,0,1).unsqueeze(0).to(device)
-    special_tokens, feature_map = model.forward(tensor_img, type='image_dense')
+    feature_map = model.forward(tensor_img, type='image_dense')
+    print(feature_map)
+    print(feature_map.mean(), feature_map.std()) 
     # 与指定位置的注意力图
-    row, col = 21,21
+    row, col = 21, 21
     heatmap = model.cosine_similarity_map(feature_map, row, col).squeeze(0).cpu().numpy()
     plt.imshow(heatmap)
     plt.text(
@@ -156,6 +160,6 @@ if __name__ == '__main__':
     )
     plt.axis("off")
     plt.tight_layout()
-    plt.savefig(f"infer_result1.png", dpi=200)
+    plt.savefig(f"infer_result.png", dpi=200)
 
 

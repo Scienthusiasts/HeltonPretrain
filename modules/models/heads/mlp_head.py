@@ -59,6 +59,7 @@ class MLPHead(nn.Module):
     def loss(self, x, y):
         '''前向传播+计算损失(训练时使用)
             x: 输入维度必须是[B, C]
+            y: 标签, [B]
         '''
         pred = self.forward(x)
         cls_loss = self.clsLoss(pred, y)
@@ -69,7 +70,6 @@ class MLPHead(nn.Module):
 
         # 组织成字典形式返回
         losses = dict(
-            total_loss = cls_loss,
             cls_loss = cls_loss,
             acc = acc
         )

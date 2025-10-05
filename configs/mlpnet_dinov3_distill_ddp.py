@@ -43,12 +43,20 @@ model_cfgs = dict(
         t_dim=1280,
         teacher=dict(
             type='DINOv3',
-            model_name='vit_huge_plus_patch16_dinov3.lvd1689m',
-            pretrained=False, 
-            load_ckpt='ckpts/vit_huge_plus_patch16_dinov3.lvd1689m.pt'
+            model_name='vit_huge_plus_patch16_dinov3.lvd1689m', 
+            load_ckpt='ckpts/vit_huge_plus_patch16_dinov3.lvd1689m.pt',
+            # model_name='vit_small_patch16_dinov3.lvd1689m', 
+            # load_ckpt='ckpts/vit_small_patch16_dinov3.lvd1689m.pt',
+            pretrained=False,
         ),
+        # distill_loss=dict(
+        #     type="SmoothL1Loss",
+        #     reduction='mean'
+        # )        
         distill_loss=dict(
-            type="SmoothL1Loss"
+            type="KLDivLoss",
+            dist_dim=1, 
+            reduction='mean'
         )
     )
 )

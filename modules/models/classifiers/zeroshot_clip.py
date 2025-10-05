@@ -41,9 +41,9 @@ class ZeroShotCLIP(nn.Module):
             pred:  模型预测结果(logits, 未经过softmax)
         """
         if self.cat_embs == None:
-            self.cat_embs = self.clip_model(x.device, self.cat_prompts, modality='text')
+            self.cat_embs = self.clip_model(self.cat_prompts, type='text', device=x.device)
             self.cat_embs = self.cat_embs.reshape(self.nc, self.template_num, -1)
-        img_embs = self.clip_model(x.device, x)
+        img_embs = self.clip_model(x, type='image', device=x.device)
         # 图文计算余弦相似度, 相似度作为分类logits
         pred_logits = self._cosine_similarity(img_embs, self.cat_embs)
 

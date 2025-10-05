@@ -11,6 +11,33 @@ import torch.distributed as dist
 
 
 
+
+
+
+
+class NoSaveWrapper(nn.Module):
+    """使用了这个包装器的nn.Module模块, 在保存权重时不会保持该模块的权重
+       (常用于蒸馏模型的teacher)
+    """
+    def __init__(self, module: nn.Module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)
+
+    def state_dict(self, *args, **kwargs):
+        return {}  # 不保存
+
+    def _load_from_state_dict(self, *args, **kwargs):
+        return  # 不加载
+
+
+
+
+
+
+
 def load_state_dict_with_prefix(model, load_ckpt, prefixes_to_try=['model.', 'module.', 'encoder.', 'backbone.', 'teacher.', 'student.']):
     """自动处理权重键名前缀不匹配问题（双向适配）
     Args:
