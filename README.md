@@ -12,17 +12,35 @@
 
 **框架设计逻辑： 通用(换一个任务, 当前的设计逻辑可以完全套用) / 专用(仅适用于当前任务)**
 
-- `configs/*` (专用, 但其组织形式通用)
-- `modules/*` (专用, 但其组织形式通用)
-- `utils/log_utils.py` (通用)
-- `utils/utils.py` (通用)
-- `utils/eval_utils.py` (专用)
-- `utils/metrics.py` (专用)
-- `utils/hooks.py` (目前是通用)
-- `nregister.py` (通用)
-- `tools/train.py` (通用)
-- `tools/eval.py` (通用)
-- `tools/test.py` (专用)
+```
+HeltonPretrain:
+├─configs (专用, 但其组织形式通用)
+├─demo    (README展示相关)
+├─modules     (专用, 但其组织形式通用)
+│  ├─datasets (自定义Dataset和数据增强)
+│  ├─losses   (自定义损失函数)
+│  └─models         (专用, 但其组织形式通用)
+│     ├─backbones   (自定义骨干网络)
+│     ├─classifiers (自定义分类器)
+│     ├─heads       (自定义任务头)
+│     └─vfms        (视觉基础模型)
+├─tools        (通用)
+│  ├─train.py  (通用, 训练pipeline)
+│  ├─eval.py   (通用, 评估pipeline)
+│  └─test.py   (专用, 测试相关逻辑)
+├─utils
+│  ├─utils.py       (通用, 一些可能用到的方法)
+│  ├─eval_utils.py  (专用，评估逻辑, 和具体任务有关)
+│  ├─metrics.py     (专用，评估指标计算, 和具体任务有关)
+│  ├─log_utils.py   (通用, 日志记录逻辑)
+│  └─hooks.py       (通用, 钩子机制)
+├─register.py  (通用, 注册机制)
+├─run.sh       (专用, DDP训练脚本)
+└─setup.py     (专用, 安装脚本)
+
+```
+
+
 
 
 
