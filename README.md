@@ -82,6 +82,7 @@ python tools/test.py
 | `2025/09/25` | ✅ 添加 openai-clip，qihoo360-fgclip VFM、 clip-zero-shot 分类模型 |
 | `2025/09/26` |                    ✅ 添加timm DINOv3 VFM                     |
 | `2025/09/29` |                      ✅ 添加VFMs蒸馏损失                      |
+| `2025/10/4`  |              ✅ 添加基于CLIP蒸馏的多任务分类模型              |
 
 
 
