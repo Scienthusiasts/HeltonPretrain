@@ -8,10 +8,10 @@ from functools import partial
 from torch.utils.data import DataLoader
 from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class
 from utils.log_utils import *
-from utils.hooks import hook_after_eval
+from pretrain.utils.hooks import hook_after_eval
 # 需要import才能注册
-from modules import * 
-from register import MODELS, DATASETS
+from pretrain import * 
+from utils.register import MODELS, DATASETS
 
 
 

@@ -9,13 +9,14 @@ import torch.backends.cudnn as cudnn
 from functools import partial
 from torch.utils.data import DataLoader
 
-from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class, train_resume, set_dataloader_epoch
+from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class, set_dataloader_epoch
+from utils.ckpts_utils import train_resume
 from utils.log_utils import *
-from utils.eval_utils import eval_epoch
-from utils.hooks import hook_after_batch, hook_after_epoch, hook_after_eval
+from pretrain.utils.hooks import hook_after_batch, hook_after_epoch, hook_after_eval
 # 需要import才能注册
-from modules import * 
-from register import MODELS, DATASETS, OPTIMIZERS
+from pretrain import * 
+from optimization import *
+from utils.register import MODELS, DATASETS, OPTIMIZERS, SCHEDULERS
 
 
 
@@ -70,9 +71,6 @@ class Train():
         '''导入数据集'''
         self.train_dataset = DATASETS.build_from_cfg(dataset_cfgs["train_dataset_cfg"])
         self.valid_dataset = DATASETS.build_from_cfg(dataset_cfgs["valid_dataset_cfg"])
-        if self.mode == 'train' or (self.mode == 'train_ddp' and dist.get_rank() == 0):
-            print(f'trainset图像数:{self.train_dataset.__len__()} validset图像数:{self.valid_dataset.__len__()}')
-            print(f'trainset类别数:{self.train_dataset.get_cls_num()} validset类别数:{self.valid_dataset.get_cls_num()}')
         # DDP训练时需要sampler且shuffle=False
         train_sampler = None
         if self.mode == 'train_ddp':

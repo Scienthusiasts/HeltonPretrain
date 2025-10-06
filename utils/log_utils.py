@@ -141,7 +141,7 @@ class ModelInfoLogger:
     
 
     @staticmethod
-    def create_model_table(param_info: List[Dict], max_name_width: int = 60, 
+    def create_model_table(param_info: List[Dict], max_name_width: int = 80, 
                         max_shape_width: int = 15) -> str:
         """创建模型参数表格
         Args:
@@ -160,7 +160,7 @@ class ModelInfoLogger:
             {'name': 'Parameter Name', 'key': 'name', 'width': max_name_width},
             {'name': 'Optimized', 'key': 'optimized', 'width': 10},
             {'name': 'Shape', 'key': 'shape', 'width': max_shape_width},
-            {'name': 'Value Scale [Min,Max]', 'key': 'value_scale', 'width': 25},
+            {'name': 'Value Scale [Min, Max]', 'key': 'value_scale', 'width': 25},
             {'name': 'Init Lr', 'key': 'lr', 'width': 8},
             {'name': 'Wd', 'key': 'wd', 'width': 8}
         ]
@@ -172,16 +172,13 @@ class ModelInfoLogger:
         title = "Model Information"
         title_line = f"+{'-' * (table_width - 2)}+"
         title_row = f"|{title:^{table_width - 2}}|"
-        
         # 创建表头分隔线
         header_separator = "+".join(["-" * (col['width'] + 2) for col in columns])
         header_separator = f"+{header_separator}+"
-        
         # 创建表头
         header = "|"
         for col in columns:
             header += f" {col['name']:^{col['width']}} |"
-        
         # 构建表格
         table_lines = []
         table_lines.append(title_line)
