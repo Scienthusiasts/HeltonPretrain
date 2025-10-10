@@ -74,7 +74,7 @@ class INDataset(data.Dataset):
         # 打印数据集信息
         use_ddp = dist.is_initialized()
         if not use_ddp or use_ddp and dist.get_rank() == 0:
-            print(f'dataset info: mode:{mode}, 图像数:{self.__len__()}, 类别数:{self.get_cls_num()}')
+            print(f'📄  dataset info: mode:{mode}, 图像数:{self.__len__()}, 类别数:{self.get_cls_num()}')
 
 
     def __getitem__(self, item):  

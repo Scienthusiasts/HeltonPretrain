@@ -1,6 +1,7 @@
-# /mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images /mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge
 trainset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/train'
 validset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images/valid'
+# trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/train'
+# validset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge/valid'
 nc = 37
 mode = 'train'
 seed = 42
@@ -80,4 +81,9 @@ scheduler_cfgs=dict(
             min_lr=warmup_lr,
             warmup_epochs=1
     )
+)
+
+'''任务特定的评估pipeline'''
+eval_pipeline_cfgs = dict(
+    type="PretrainEvalPipeline"
 )

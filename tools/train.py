@@ -12,32 +12,31 @@ from torch.utils.data import DataLoader
 from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class, set_dataloader_epoch
 from utils.ckpts_utils import train_resume
 from utils.log_utils import *
-from pretrain.utils.hooks import hook_after_batch, hook_after_epoch, hook_after_eval
+from utils.hooks import NecessaryHook
 # 需要import才能注册
 from pretrain import * 
+from generation import * 
 from optimization import *
-from utils.register import MODELS, DATASETS, OPTIMIZERS, SCHEDULERS
+from utils.register import MODELS, DATASETS, OPTIMIZERS, SCHEDULERS, EVALPIPELINES
 
 
 
-
-class Train():
+class Trainer():
     """整合训练/验证/推理时的抽象流程"""
     def __init__(self, mode, epoch, seed, log_dir, log_interval, eval_interval, resume_path, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs):
         """初始化各种模块
             Args:
-                mode:           train, train_ddp
-                epoch:          训练多少轮
-                seed:           全局种子
+                mode:               train, train_ddp
+                epoch:              训练多少轮
+                seed:               全局种子
                 log_dir:
                 log_interval:
                 eval_interval:
                 resume_path:
-                model_cfgs:     和网络模型有关的配置参数
-                dataset_cfgs:   和数据集有关的配置参数
-                optimizer_cfgs: 和优化器有关的配置参数
-                scheduler_cfgs: 和学习率衰减策略有关的配置参数
-
+                model_cfgs:         和网络模型有关的配置参数
+                dataset_cfgs:       和数据集有关的配置参数
+                optimizer_cfgs:     和优化器有关的配置参数
+                scheduler_cfgs:     和学习率衰减策略有关的配置参数
         """
         self.mode = mode
         self.log_dir = log_dir
@@ -51,7 +50,7 @@ class Train():
         # 设置全局种子
         seed_everything(self.seed)
 
-        # GPU/CPU
+        '''确定 CPU/单卡/DDP 训练策略'''
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.mode=='train_ddp':
             self.local_rank = int(os.environ["LOCAL_RANK"]) 
@@ -70,7 +69,7 @@ class Train():
 
         '''导入数据集'''
         self.train_dataset = DATASETS.build_from_cfg(dataset_cfgs["train_dataset_cfg"])
-        self.valid_dataset = DATASETS.build_from_cfg(dataset_cfgs["valid_dataset_cfg"])
+        self.valid_dataset = DATASETS.build_from_cfg(dataset_cfgs["valid_dataset_cfg"]) if dataset_cfgs["valid_dataset_cfg"] else None
         # DDP训练时需要sampler且shuffle=False
         train_sampler = None
         if self.mode == 'train_ddp':
@@ -93,7 +92,7 @@ class Train():
             collate_fn=self.valid_dataset.dataset_collate,
             worker_init_fn=partial(worker_init_fn, seed=self.seed),
             pin_memory=True # CPU → GPU 数据拷贝速度加速
-        )
+        ) if dataset_cfgs["valid_dataset_cfg"] else None
         # 一个epoch包含多少batch
         self.train_batch_num = len(self.train_dataloader)
 
@@ -210,12 +209,15 @@ if __name__ == '__main__':
     # 使用动态导入模块导入参数文件
     cargs = dynamic_import_class(config_path, get_class=False)
     # 初始化runner
-    runner = Train(cargs.mode, cargs.epoch, cargs.seed, cargs.log_dir, cargs.log_interval, cargs.eval_interval, 
-                    cargs.resume, cargs.model_cfgs, cargs.dataset_cfgs, cargs.optimizer_cfgs, cargs.scheduler_cfgs)
+    runner = Trainer(cargs.mode, cargs.epoch, cargs.seed, cargs.log_dir, cargs.log_interval, cargs.eval_interval, cargs.resume, 
+                     cargs.model_cfgs, cargs.dataset_cfgs, cargs.optimizer_cfgs, cargs.scheduler_cfgs)
     # 注册 Hook
-    runner.register_hook("after_batch", hook_after_batch)
-    runner.register_hook("after_epoch", hook_after_epoch)
-    runner.register_hook("after_eval", hook_after_eval)
+    # 任务特定的评估pipeline
+    eval_pipeline = EVALPIPELINES.build_from_cfg(cargs.eval_pipeline_cfgs)
+    hook = NecessaryHook(eval_pipeline)
+    runner.register_hook("after_batch", hook.hook_after_batch)
+    runner.register_hook("after_epoch", hook.hook_after_epoch)
+    runner.register_hook("after_eval",  hook.hook_after_eval)
 
     if cargs.mode in ['train', 'train_ddp']:
         # 拷贝一份当前训练对应的config文件(方便之后查看细节)

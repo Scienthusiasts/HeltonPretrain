@@ -104,3 +104,8 @@ scheduler_cfgs=dict(
             warmup_epochs=1
     )
 )
+
+'''任务特定的评估pipeline'''
+eval_pipeline_cfgs = dict(
+    type="PretrainEvalPipeline"
+)

@@ -22,9 +22,10 @@ HeltonPretrain:
 │  ├─utils.py       (通用, 一些可能用到的方法)
 │  ├─ckpts_utils.py (通用, 权重load/save相关逻辑)
 │  ├─log_utils.py   (通用, 日志记录逻辑)
+│  ├─hooks.py       (通用, 钩子机制, 实现训练,评估时必用的方法)
 │  └─register.py    (通用, 注册机制)
 ├─setup.py (安装脚本)
-│------------------------------------------------- 
+│------------------------------------------------------------- 
 └─pretrain    (专用, 但其组织形式通用)
    ├─configs  (自定义模型配置参数文件)
    ├─datasets (自定义Dataset和数据增强)
@@ -35,9 +36,8 @@ HeltonPretrain:
    │  ├─heads       (自定义任务头)
    │  └─vfms        (视觉基础模型)
    ├─utils            
-   │  ├─eval_utils.py  (评估逻辑, 和具体任务有关)
-   │  ├─metrics.py     (评估指标计算, 和具体任务有关)
-   │  └─hooks.py       (钩子机制)
+   │  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
+   │  └─metrics.py     (评估指标计算, 和具体任务有关)
    └─tools             
       ├─test.py (测试相关逻辑)
       └─run.sh  (DDP训练脚本)
@@ -72,7 +72,7 @@ DDP 多卡训练 example
 
 ```
  # 注意修改config文件里对应参数, mode="train_ddp"
-sh run.sh
+sh pretrain/run.sh
 ```
 
 
@@ -101,9 +101,10 @@ python tools/test.py
 | :----------: | :----------------------------------------------------------: |
 | `2025/09/24` | ✅ 代码重构  ✨ **支持注册机制(动态配置自定义参数文件), hook机制**  ✨ **支持Pytorch DDP 分布式训练**  ✅ 自动日志记录, 支持 `tensorboard`  ✅ resume 中断恢复训练  ✅ 支持 scheduler (学习率decay)  ✅ 兼容 `timm` 支持的 Backbone模型，可灵活更换 Backbone  ✅ 兼容 `Albentation` 图像增强方法  ✅ 支持混淆矩阵, accuracy, f1score, mAP 等评估指标  ✅ 深度学习 Hello Word -> 支持图像分类任务  ➡️ 各种表征学习自监督方法 (完善中...) |
 | `2025/09/25` | ✅ 添加 openai-clip，qihoo360-fgclip VFM、 clip-zero-shot 分类模型 |
-| `2025/09/26` |                    ✅ 添加timm DINOv3 VFM                     |
-| `2025/09/29` |                      ✅ 添加VFMs蒸馏损失                      |
-| `2025/10/4`  |              ✅ 添加基于CLIP蒸馏的多任务分类模型              |
+| `2025/09/26` |                    ✅ 添加 timm DINOv3 VFM                    |
+| `2025/09/29` |                     ✅ 添加 VFMs 蒸馏损失                     |
+| `2025/10/4`  |             ✅ 添加基于 CLIP 蒸馏的多任务分类模型             |
+| `2025/10/11` | ➡️ 添加生成任务`./generation`, 支持 DDPM/DDIM (开发中，目前代码逻辑还不够清晰) |
 
 
 

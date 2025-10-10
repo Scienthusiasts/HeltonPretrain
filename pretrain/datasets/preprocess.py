@@ -32,13 +32,12 @@ class Transforms():
         self.train_transform = A.Compose([
                 # 随机旋转
                 A.Rotate(limit=15, p=0.5),
+                # 随机镜像
                 A.HorizontalFlip(p=0.5),
                 # A.VerticalFlip(p=0.5),
                 # A.RandomRotate90(p=0.5),
                 # 随机尺寸裁剪并缩放到固定尺寸
                 A.RandomResizedCrop(img_size[0], img_size[1], scale=(0.3, 1), ratio=(0.75, 1.33), p=0.5),
-                # 随机镜像
-                A.HorizontalFlip(p=0.5),
                 # 参数：随机色调、饱和度、值变化
                 A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, always_apply=False, p=0.5),
                 # 随机明亮对比度

@@ -40,3 +40,8 @@ dataset_cfgs=dict(
     num_workers=8,
     valid_shuffle=False
 )
+
+'''自定义hook'''
+eval_pipeline_cfgs = dict(
+    type="PretrainEvalPipeline"
+)
