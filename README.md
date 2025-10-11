@@ -14,6 +14,10 @@
 ```
 HeltonX:
 ├─demo    (README展示相关)
+├─configs
+│  └─accelerate_yamls
+│     ├─accelerate_ddp.yaml         (通用, Accelerator库ddp训练配置文件)
+│     └─accelerate_single_gpu.yaml  (通用, Accelerator库单卡训练配置文件)
 ├─tools
 │  ├─train.py  (通用, 训练pipeline)
 │  └─eval.py   (通用, 评估pipeline)
@@ -41,8 +45,9 @@ HeltonX:
 │  │  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
 │  │  └─metrics.py     (评估指标计算, 和具体任务有关)
 │  └─tools             
-│     ├─test.py (测试相关逻辑, 完善中)
-│     └─run.sh  (DDP训练脚本)
+│     ├─test.py            (测试相关逻辑, 完善中)
+│     ├─run.sh             (DDP训练脚本)
+│     └─run_accelerate.sh  (基于Accelerator库的DDP训练脚本)
 └─generation    (同pretrain)
    └─... ...
 ```
@@ -54,6 +59,13 @@ HeltonX:
 - `OPTIMIZERS`：注册torch.optim.Optimizer子类
 - `SCHEDULERS`：注册torch.optim.lr_scheduler子类
 - `EVALPIPELINES`：注册任务特定的评估pipelines
+
+### `utils/hooks.py`
+
+- `NecessaryHook.hook_after_batch`：记录/打印日志
+- `NecessaryHook.hook_after_epoch`：**评估**+记录/打印日志+保存权重
+  - 注：当使用DDP训练时, 这里只在主节点的模型上评估,其余结点什么也不做
+- `NecessaryHook.hook_after_epoch`：**评估**+记录/打印日志
 
 ### `xxx/utils/eval_utils.py`
 
@@ -67,9 +79,11 @@ HeltonX:
 - scheduler_cfgs：学习率decay相关配置参数
 - eval_pipeline_cfgs：任务特定的评估pipeline配置参数
 
+
+
 ## 🔧安装
 
-```
+```bash
 conda create -n hx python=3.10
 cd HeltonXNet
 pip install -r requirements.txt
@@ -83,23 +97,29 @@ pip install -e .
 
 单卡训练 example
 
-```
+```bash
 # 根据具体需求修改config文件里相关配置参数, mode="train"
 python tools/train.py --config pretrain/configs/xxx.py
+
+# 或，使用accelerate库封装过的训练pipeline
+CUDA_VISIBLE_DEVICES=0 accelerate launch --config_file tools/accelerate_single_gpu.yaml tools/train_accelerate.py --config pretrain/configs/xxx.py
 ```
 
 DDP 多卡训练 example
 
-```
+```bash
 # 根据具体需求修改config文件里相关配置参数, config文件下mode="train_ddp"
-sh pretrain/run.sh
+sh pretrain/tools/run.sh
+
+# 或，使用accelerate库封装过的训练pipeline
+sh pretrain/tools/run_accelerate.sh
 ```
 
 
 
 ## 🔥评估
 
-```
+```bash
 # 注意修改config文件里对应参数, mode="eval"
 python tools/eval.py --config pretrain/configs/xxx.py
 ```
@@ -108,7 +128,7 @@ python tools/eval.py --config pretrain/configs/xxx.py
 
 ## 🔥推理 (完善中...)
 
-```
+```bash
 python pretrain/tools/test.py 
 ```
 
@@ -125,6 +145,7 @@ python pretrain/tools/test.py
 | `2025/09/29` |                     ✅ 添加 VFMs 蒸馏损失                     |
 | `2025/10/4`  |             ✅ 添加基于 CLIP 蒸馏的多任务分类模型             |
 | `2025/10/11` | ➡️ 添加生成任务`./generation`, 支持 DDPM/DDIM (开发中，目前代码逻辑还不够清晰) |
+| `2025/10/12` |       ✅ **支持 `Accelerate`(一键 DDP、混合精度训练)**        |
 
 
 

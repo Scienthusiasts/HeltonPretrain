@@ -22,7 +22,7 @@ class NecessaryHook():
             Args:
                 runner: Runner实例
         """
-        if runner.mode == 'train' or (runner.mode == 'train_ddp' and dist.get_rank() == 0):
+        if runner.accelerator.is_main_process:
             # 记录/打印日志
             runner.runner_logger.train_iter_log_printer(runner.cur_step, runner.cur_epoch, runner.optimizer, runner.losses)
 
@@ -32,22 +32,27 @@ class NecessaryHook():
             Args:
                 runner: Runner实例
         """
-        if runner.mode == 'train' or (runner.mode == 'train_ddp' and dist.get_rank() == 0):
-            if runner.cur_epoch % runner.eval_interval == 0:
-                # 评估+记录/打印日志
-                flag_metric_name = self.hook_after_eval(runner)
-                # 保存权重
+        if runner.cur_epoch % runner.eval_interval != 0:
+            return
+        # 只在主进程上评估
+        if runner.accelerator.is_main_process:
+            # 评估+记录/打印日志
+            flag_metric_name = self.hook_after_eval(runner)
+            # 保存权重
+            if runner.accelerator.is_main_process:
                 save_ckpt(runner.cur_epoch, runner.eval_interval, runner.model, runner.scheduler,
                         runner.log_dir, runner.runner_logger.argsHistory, flag_metric_name)
-
 
     def hook_after_eval(self, runner):
         """评估时 hook
             Args:
                 runner: Runner实例
         """
+        # 需要解包构建一个非DDP包装的模型副本，否则如果只用gpu0上的模型推理时, 
+        # 一些操作会使用跨进程通信(allreduce / broadcast), 此时会产生阻塞
+        model_unwrapped = runner.accelerator.unwrap_model(runner.model)
         # 评估
-        evaluations, flag_metric_name = self.eval_pipeline(runner)
+        evaluations, flag_metric_name = self.eval_pipeline(runner, model_unwrapped)
         # 记录/打印日志
         runner.runner_logger.train_epoch_log_printer(runner.cur_epoch, evaluations, flag_metric_name)
         return flag_metric_name

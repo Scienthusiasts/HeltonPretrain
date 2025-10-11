@@ -143,6 +143,14 @@ def worker_init_fn(worker_id, seed, rank=0):
     torch.manual_seed(worker_seed)
 
 
+def accelerate_worker_init_fn(worker_id):
+    """使用accelerate封装后使用的worker_init_fn, 乌苏再手动传seed和rank
+    """
+    worker_info = torch.utils.data.get_worker_info()
+    # 每个 worker 的基础种子来源于主进程
+    seed = torch.initial_seed() % 2**32
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 

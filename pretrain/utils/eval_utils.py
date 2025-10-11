@@ -20,10 +20,11 @@ from utils.register import EVALPIPELINES
 class PretrainEvalPipeline():
     '''一个epoch的评估(基于验证集)
     '''
-    def __call__(self, runner):
+    def __call__(self, runner, model=None):
         # 直接从传入的类中获取参数(避免每个任务的特殊化):
         device = runner.device
-        model = runner.model
+        if model==None:
+            model = runner.model
         valid_dataloader = runner.valid_dataloader
         cat_names = runner.valid_dataset.cat_names
         log_dir = runner.log_dir

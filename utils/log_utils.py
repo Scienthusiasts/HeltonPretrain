@@ -338,7 +338,6 @@ class RunnerLogger:
         # 记录所有损失:
         for loss_name, loss_value in losses.items():
             self.argsHistory.record(loss_name, loss_value.item())
-
         '''打印'''
         # 每间隔log_interval个iter才打印一次
         if step % self.log_interval != 0:
