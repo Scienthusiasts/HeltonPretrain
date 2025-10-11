@@ -1,7 +1,8 @@
 <div align='center'>
-    <h1>HeltonPretrain 🚀</h1>
-    <p><em>0~1实现预训练框架，基于Pytorch，不断完善中 ~</em></p>
+    <h1>HeltonX♾️</h1>
+    <p><em>致力于 0~1 实现通用深度学习框架，基于 Pytorch，支持各类下游任务，不断完善中 ~</em></p>
 </div>
+
 
 
 
@@ -13,45 +14,66 @@
 **框架设计逻辑： 通用(换一个任务, 当前的设计逻辑可以完全套用) / 专用(仅适用于当前任务)**
 
 ```
-HeltonPretrain:
+HeltonX:
 ├─demo    (README展示相关)
 ├─tools
 │  ├─train.py  (通用, 训练pipeline)
 │  └─eval.py   (通用, 评估pipeline)
-├─utils
+├─utils            
 │  ├─utils.py       (通用, 一些可能用到的方法)
 │  ├─ckpts_utils.py (通用, 权重load/save相关逻辑)
 │  ├─log_utils.py   (通用, 日志记录逻辑)
 │  ├─hooks.py       (通用, 钩子机制, 实现训练,评估时必用的方法)
 │  └─register.py    (通用, 注册机制)
+├─optimization
+│  ├─optimizers.py  (通用, 优化器)
+│  └─schedulers.py  (通用, 学习率decay)
 ├─setup.py (安装脚本)
 │------------------------------------------------------------- 
-└─pretrain    (专用, 但其组织形式通用)
-   ├─configs  (自定义模型配置参数文件)
-   ├─datasets (自定义Dataset和数据增强)
-   ├─losses   (自定义损失函数)
-   ├─models         (但其组织形式通用)
-   │  ├─backbones   (自定义骨干网络)
-   │  ├─classifiers (自定义分类器)
-   │  ├─heads       (自定义任务头)
-   │  └─vfms        (视觉基础模型)
-   ├─utils            
-   │  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
-   │  └─metrics.py     (评估指标计算, 和具体任务有关)
-   └─tools             
-      ├─test.py (测试相关逻辑)
-      └─run.sh  (DDP训练脚本)
+├─pretrain    (专用, 但其组织形式通用)
+│  ├─configs  (自定义模型配置参数文件)
+│  ├─datasets (自定义Dataset和数据增强)
+│  ├─losses   (自定义损失函数)
+│  ├─models         (自定义网络组件)
+│  │  ├─backbones   (自定义骨干网络)
+│  │  ├─classifiers (自定义分类器)
+│  │  ├─heads       (自定义任务头)
+│  │  └─vfms        (视觉基础模型)
+│  ├─utils             (实现任务特定的相关功能)
+│  │  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
+│  │  └─metrics.py     (评估指标计算, 和具体任务有关)
+│  └─tools             
+│     ├─test.py (测试相关逻辑, 完善中)
+│     └─run.sh  (DDP训练脚本)
+└─generation    (同pretrain)
+   └─... ...
 ```
 
+###  `utils/register.py`
 
+- `MODELS`：注册nn.Module子类
+- `DATASETS`：注册dataset.Dataset子类
+- `OPTIMIZERS`：注册torch.optim.Optimizer子类
+- `SCHEDULERS`：注册torch.optim.lr_scheduler子类
+- `EVALPIPELINES`：注册任务特定的评估pipelines
 
+### `xxx/utils/eval_utils.py`
 
+- `XxxEvalPipeline`：用于评估流程(Trainner中一个epoch后的评估 / Evaler中的评估)，传入runner实例用于获取评估相关参数
+
+### `xxx/configs/*.py`  (配置文件)
+
+- model_cfgs：模型相关配置参数
+- dataset_cfgs：数据集相关配置参数
+- optimizer_cfg：优化器相关配置参数
+- scheduler_cfgs：学习率decay相关配置参数
+- eval_pipeline_cfgs：任务特定的评估pipeline配置参数
 
 ## 🔧安装
 
 ```
-conda create -n hp python=3.10
-cd HeltonPretrain
+conda create -n hx python=3.10
+cd HeltonXNet
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -64,14 +86,14 @@ pip install -e .
 单卡训练 example
 
 ```
- # 注意修改config文件里对应参数, mode="train"
- python tools/train.py --config configs/fcnet.py
+# 根据具体需求修改config文件里相关配置参数, mode="train"
+python tools/train.py --config pretrain/configs/xxx.py
 ```
 
 DDP 多卡训练 example
 
 ```
- # 注意修改config文件里对应参数, mode="train_ddp"
+# 根据具体需求修改config文件里相关配置参数, config文件下mode="train_ddp"
 sh pretrain/run.sh
 ```
 
@@ -80,16 +102,16 @@ sh pretrain/run.sh
 ## 🔥评估
 
 ```
- # 注意修改config文件里对应参数, mode="eval"
- python tools/eval.py --config configs/fcnet.py
+# 注意修改config文件里对应参数, mode="eval"
+python tools/eval.py --config pretrain/configs/xxx.py
 ```
 
 
 
-## 🔥推理
+## 🔥推理 (完善中...)
 
 ```
-python tools/test.py 
+python pretrain/tools/test.py 
 ```
 
 
@@ -109,5 +131,5 @@ python tools/test.py
 
 
 ## ➡️TODO
-框架迁移 (将适配更多下游任务, 检测, 分割, 生成...)
+任务拓展 (将支持更多下游任务, 检测, 分割, 生成...)
 
