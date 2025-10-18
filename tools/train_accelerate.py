@@ -187,6 +187,7 @@ class Trainer():
             self.fit_epoch()
 
         self.call_hooks("after_fit", runner=self)
+        self.accelerator.end_training()
 
 
 

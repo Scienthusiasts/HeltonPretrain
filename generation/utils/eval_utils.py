@@ -20,10 +20,11 @@ from utils.register import EVALPIPELINES
 class GenerationEvalPipeline():
     '''一个epoch的评估(基于验证集)
     '''
-    def __call__(self, runner):
+    def __call__(self, runner, model=None):
         # 直接从传入的类中获取参数(避免每个任务的特殊化):
-        model = runner.model
-        epoch = runner.epoch
+        if model==None:
+            model = runner.model
+        epoch = runner.cur_epoch
         log_dir = runner.log_dir
 
         # 图像均值 标准差

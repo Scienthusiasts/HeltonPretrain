@@ -184,9 +184,7 @@ class DDPM(nn.Module):
         # note: guard against division by zero if alpha_prev == 0
         # both alpha_t and alpha_prev are tensors
         eps_ratio = (alpha_t / (alpha_prev + 1e-8)).clamp(max=1.0)  # alpha_t / alpha_prev
-        sigma = eta * torch.sqrt(
-            ((1.0 - alpha_prev) / (1.0 - alpha_t + 1e-8)) * (1.0 - eps_ratio)
-        )
+        sigma = eta * torch.sqrt(((1.0 - alpha_prev) / (1.0 - alpha_t + 1e-8)) * (1.0 - eps_ratio))
 
         # the "direction pointing to x_t" term
         # sqrt(1 - alpha_prev - sigma^2) * eps
@@ -195,10 +193,7 @@ class DDPM(nn.Module):
         dir_term = torch.sqrt(coef) * eps
 
         # noise (only when eta > 0)
-        if eta > 0.0:
-            noise = torch.randn_like(x_t)
-        else:
-            noise = torch.zeros_like(x_t)
+        noise = torch.randn_like(x_t) if eta > 0 else 0.0
 
         # final composition
         x_prev = sqrt_alpha_prev * pred_x0 + dir_term + sigma * noise
@@ -220,6 +215,7 @@ class DDPM(nn.Module):
         """
         device = next(self.denoise_model.parameters()).device
         b = shape[0]
+        T = self.timesteps
 
         # initial noise x_T
         # 1.采用完全不同的噪声
@@ -228,27 +224,21 @@ class DDPM(nn.Module):
         # img = torch.randn(shape[1:], device=device)
         # img = img.unsqueeze(0).repeat(shape[0], 1, 1, 1)
         # build timestep sequence (ascending): [0, ..., T-1]
-        T = self.timesteps
-        ddim_steps = min(T, ddim_steps)
+        if ddim_steps is None:
+            ddim_steps = T
+        else:
+            ddim_steps = min(T, ddim_steps)
         # create ddim_steps linearly spaced timesteps including 0 and T-1
-        step_indices = []
-        for i in range(ddim_steps):
-            idx = int(round(i * (T - 1) / (ddim_steps - 1)))
-            step_indices.append(idx)
-        # ensure unique & sorted
-        times = sorted(list(dict.fromkeys(step_indices)))
+        times = np.linspace(0, T - 1, ddim_steps, dtype=int).tolist()
 
         # we'll iterate from largest t down to 0
         imgs = []
         # times is ascending: [0,...,T-1], we want to iterate reverse
-        for t in tqdm(reversed(range(0, len(times))), desc='sampling loop time step', total=len(times)):
-            t_cur = times[t]
+        for i in tqdm(reversed(range(0, len(times))), desc='sampling loop time step', total=len(times)):
+            t_cur = times[i]
             # next (previous in time) timestep: if idx>0 use times[idx-1], else 0
-            if t > 0:
-                t_prev = times[t - 1]
-            else:
-                t_prev = 0
-            
+            t_prev = times[i - 1] if i > 0 else 0
+
             batch_t = torch.full((b,), t_cur, device=device, dtype=torch.long)
             batch_t_prev = torch.full((b,), t_prev, device=device, dtype=torch.long)
 

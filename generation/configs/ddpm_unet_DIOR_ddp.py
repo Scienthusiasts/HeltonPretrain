@@ -1,17 +1,17 @@
-trainset_path = r'/mnt/yht/data/The_Oxford_IIIT_Pet_Dataset/images'
-# trainset_path = r'/mnt/yht/data/FlickrBreeds37_Oxford_IIIT_Pet_merge'
-mode = 'train'
+trainset_path = r'/mnt/yht/data/DIOR'
+mode = 'train_ddp'
 seed = 42
-log_dir = r'./log/ddpn_unet_train'
+log_dir = r'./log/ddpm_unet_DIOR_train_ddp'
 img_size = [128, 128]
-epoch = 200
-bs = 24
+dim = 128
+epoch = 1000
+bs = 16
 lr = 2e-4
 warmup_lr = lr*1e-2
 lr_decay = 1e-1
 load_ckpt = None
-log_interval = 10
-eval_interval = 1
+log_interval = 50
+eval_interval = 10
 resume = None
 
 
@@ -28,9 +28,10 @@ model_cfgs = dict(
     loss_type='huber',
     denoise_model=dict(
         type="UNet",
-        dim=img_size[0],
-        channels=3,
-        dim_mults=(1, 2, 4,)
+        input_dim=3,
+        output_dim=3,
+        # 配置 encoder / decoder 每一层的通道数
+        layer_dims=[dim*1, dim*1, dim*2, dim*4],
     )
 )
 '''数据集配置参数'''

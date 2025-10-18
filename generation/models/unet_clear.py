@@ -10,207 +10,211 @@ from utils.register import MODELS
 
 
 
-@MODELS.register
-class UNet(nn.Module):
-    """DDPM 使用的 U-Net 网络结构
-    ----------------------------------------
-    结构特点：
-      - Encoder-Decoder（U 型结构）
-      - 每层包含两个 ResNet Block + Attention + 下/上采样层
-      - 每个 ResBlock 内加入时间步嵌入（time embedding）
-      - 中间层包含 Self-Attention
-      - 支持 self-conditioning（将上一时刻预测的 x₀ 拼接输入）
+
+
+class Encoder(nn.Module):
+    """UNet Encoder, 包含三个结构(初始层, 编码层, BottleNeck)
     """
-
-    def __init__(
-        self,
-        dim: int,
-        init_dim: int = None,
-        out_dim: int = None,
-        dim_mults=(1, 2, 4, 8),
-        channels: int = 3,
-        self_condition: bool = False,
-        resnet_block_groups: int = 4,
-    ):
+    def __init__(self, input_dim, layer_dims, time_dim, resnet_block_groups=4):
+        """
+            Args:
+                input_dim:           输入图像通道数(一般=3)
+                layer_dims:          encoder通道数 例:[64, 64, 128, 256]
+                time_dim:            时间编码维度
+                resnet_block_groups: 每个残差block有几层卷积
+            Returns:
+                x:     最终输出特征
+                skips: 中间的跨层特征用于后续残差拼接
+        """
         super().__init__()
+        res_block = partial(ResnetBlock, groups=resnet_block_groups)
 
-        # ========== 输入层与维度设定 ==========
-        self.channels = channels
-        self.self_condition = self_condition
-
-        # 输入通道：是否使用自条件（self-conditioning）
-        input_channels = channels * (2 if self_condition else 1)
-
-        # 初始通道数
-        init_dim = default(init_dim, dim)
-        self.init_conv = nn.Conv2d(input_channels, init_dim, kernel_size=1)
-
-        # 各层通道配置（如 64→128→256→512）
-        dims = [init_dim, *map(lambda m: dim * m, dim_mults)]
-        in_out = list(zip(dims[:-1], dims[1:]))
-
-        # ========== 时间步嵌入模块 ==========
-        time_dim = dim * 4
-        self.time_mlp = nn.Sequential(
-            SinusoidalPositionEmbeddings(dim),  # [B, dim]
-            nn.Linear(dim, time_dim),
-            nn.GELU(),
-            nn.Linear(time_dim, time_dim),
-        )
-
-        # 快捷构造 ResNet Block
-        block = partial(ResnetBlock, groups=resnet_block_groups)
-
-        # ========== 下采样路径（Encoder） ==========
+        # init conv
+        self.init_conv = nn.Conv2d(input_dim, layer_dims[0], 1)
+        # downsample encoder
+        in_out = list(zip(layer_dims[:-1], layer_dims[1:]))
         self.downs = nn.ModuleList()
         for i, (dim_in, dim_out) in enumerate(in_out):
             is_last = (i == len(in_out) - 1)
+            self.downs.append(nn.ModuleDict({
+                "block1": res_block(dim_in, dim_in, time_emb_dim=time_dim),
+                "block2": res_block(dim_in, dim_in, time_emb_dim=time_dim),
+                "attn": Residual(PreNorm(dim_in, LinearAttention(dim_in))),
+                "downsample": Downsample(dim_in, dim_out) if not is_last else nn.Conv2d(dim_in, dim_out, 3, padding=1)
+            }))
+        # BottleNeck
+        self.mid_block1 = ResnetBlock(layer_dims[-1], layer_dims[-1], time_emb_dim=time_dim)
+        self.mid_attn = Residual(PreNorm(layer_dims[-1], Attention(layer_dims[-1])))
+        self.mid_block2 = ResnetBlock(layer_dims[-1], layer_dims[-1], time_emb_dim=time_dim)
 
-            self.downs.append(
-                nn.ModuleDict({
-                    "block1": block(dim_in, dim_in, time_emb_dim=time_dim),
-                    "block2": block(dim_in, dim_in, time_emb_dim=time_dim),
-                    "attn": Residual(PreNorm(dim_in, LinearAttention(dim_in))),
-                    "downsample": (
-                        nn.Conv2d(dim_in, dim_out, 3, padding=1)
-                        if is_last else Downsample(dim_in, dim_out)
-                    ),
-                })
-            )
+    def forward(self, x, t):
+        skips = []
+        # init conv
+        x = self.init_conv(x)
+        skips.append(x)
+        # encoder
+        for layer in self.downs:
+            x = layer['block1'](x, t)
+            skips.append(x)
+            x = layer['block2'](x, t)
+            x = layer['attn'](x)
+            skips.append(x)
+            x = layer['downsample'](x)
+        # bottle_neck
+        x = self.mid_block1(x, t)
+        x = self.mid_attn(x)
+        x = self.mid_block2(x, t)
 
-        # ========== 中间层（Bottleneck） ==========
-        mid_dim = dims[-1]
-        self.mid = nn.ModuleDict({
-            "block1": block(mid_dim, mid_dim, time_emb_dim=time_dim),
-            "attn": Residual(PreNorm(mid_dim, Attention(mid_dim))),
-            "block2": block(mid_dim, mid_dim, time_emb_dim=time_dim),
-        })
+        return x, skips
+    
 
-        # ========== 上采样路径（Decoder） ==========
+
+
+class Decoder(nn.Module):
+    """UNet Decoder, 包含三个结构(解码层, 输出层)
+    """
+    def __init__(self, output_dim, layer_dims, time_dim, resnet_block_groups=4):
+        """
+            Args:
+                output_dim:          生成图像通道数(一般=3)
+                layer_dims:          decoder通道数 例:[64, 64, 128, 256]
+                time_dim:            时间编码维度
+                resnet_block_groups: 每个残差block有几层卷积
+            Returns:
+                x: 最终生成的图像
+        """
+        super().__init__()
+        res_block = partial(ResnetBlock, groups=resnet_block_groups)
+
+        # decoder
+        in_out = list(zip(layer_dims[:-1], layer_dims[1:]))
         self.ups = nn.ModuleList()
         for i, (dim_in, dim_out) in enumerate(reversed(in_out)):
-            is_last = (i == len(in_out) - 1)
+            is_last = i == (len(in_out) - 1)
+            self.ups.append(nn.ModuleDict({
+                "block1": res_block(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
+                "block2": res_block(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
+                "attn": Residual(PreNorm(dim_out, LinearAttention(dim_out))),
+                "upsample": Upsample(dim_out, dim_in) if not is_last else nn.Conv2d(dim_out, dim_in, 3, padding=1)
+            }))
+        # ouput conv
+        self.final_res_block = ResnetBlock(layer_dims[0] * 2, layer_dims[0], time_emb_dim=time_dim)
+        self.final_conv = nn.Conv2d(layer_dims[0], output_dim, 1)
 
-            self.ups.append(
-                nn.ModuleDict({
-                    "block1": block(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
-                    "block2": block(dim_out + dim_in, dim_out, time_emb_dim=time_dim),
-                    "attn": Residual(PreNorm(dim_out, LinearAttention(dim_out))),
-                    "upsample": (
-                        nn.Conv2d(dim_out, dim_in, 3, padding=1)
-                        if is_last else Upsample(dim_out, dim_in)
-                    ),
-                })
-            )
-
-        # ========== 输出层 ==========
-        self.out_dim = default(out_dim, channels)
-        self.final = nn.Sequential(
-            block(dim * 2, dim, time_emb_dim=time_dim),
-            nn.Conv2d(dim, self.out_dim, 1),
-        )
-
-        # ========== 权重初始化 ==========
-        self._init_weights()
-
-    # ------------------------------------------------------------------
-
-    def _init_weights(self):
-        """自定义权重初始化"""
-        def init_fn(m):
-            if isinstance(m, (nn.Conv2d, WeightStandardizedConv2d)):
-                nn.init.normal_(m.weight, mean=0.0, std=0.02)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, mean=0.0, std=0.02)
-                nn.init.zeros_(m.bias)
-            elif isinstance(m, (nn.GroupNorm, nn.BatchNorm2d, nn.LayerNorm)):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
-
-        self.apply(init_fn)
-
-    # ------------------------------------------------------------------
-
-    def forward(self, x, time, x_self_cond=None):
-        """
-        Args:
-            x: [B, C, H, W] 输入图像（带噪声）
-            time: [B] 当前扩散时间步
-            x_self_cond: [B, C, H, W] 自条件输入（可选）
-        """
-        # 若使用 self-conditioning，则拼接上预测的 x₀
-        if self.self_condition:
-            x_self_cond = default(x_self_cond, lambda: torch.zeros_like(x))
-            x = torch.cat((x_self_cond, x), dim=1)
-
-        # 初始卷积
-        x = self.init_conv(x)
-        residual = x.clone()
-
-        # 时间步嵌入
-        t_emb = self.time_mlp(time)
-
-        # -------- Encoder Path --------
-        skip_connections = []
-        for layer in self.downs:
-            x = layer["block1"](x, t_emb)
-            skip_connections.append(x)
-
-            x = layer["block2"](x, t_emb)
-            x = layer["attn"](x)
-            skip_connections.append(x)
-
-            x = layer["downsample"](x)
-
-        # -------- Bottleneck --------
-        x = self.mid["block1"](x, t_emb)
-        x = self.mid["attn"](x)
-        x = self.mid["block2"](x, t_emb)
-
-        # -------- Decoder Path --------
+    def forward(self, x, skips, t):
+        # decoder
         for layer in self.ups:
-            x = torch.cat((x, skip_connections.pop()), dim=1)
-            x = layer["block1"](x, t_emb)
+            x = torch.cat((x, skips.pop()), dim=1)
+            x = layer['block1'](x, t)
+            x = torch.cat((x, skips.pop()), dim=1)
+            x = layer['block2'](x, t)
+            x = layer['attn'](x)
+            x = layer['upsample'](x)
+        # ouput conv
+        x = torch.cat((x, skips.pop()), dim=1)
+        x = self.final_res_block(x, t)
+        x = self.final_conv(x)
 
-            x = torch.cat((x, skip_connections.pop()), dim=1)
-            x = layer["block2"](x, t_emb)
-            x = layer["attn"](x)
-
-            x = layer["upsample"](x)
-
-        # -------- Final Output --------
-        x = torch.cat((x, residual), dim=1)
-        return self.final(x)
-
-
+        return x
 
 
+
+
+
+@MODELS.register
+class UNet(nn.Module):
+    """UNet(添加时序编码+线性注意力机制)
+    """
+    def __init__(self, input_dim, output_dim, layer_dims, resnet_block_groups=4):
+        """
+            Args:
+                input_dim:           输入图像通道数(一般=3)
+                output_dim:          生成图像通道数(一般=3)
+                layer_dims:          decoder通道数 例:[64, 64, 128, 256]
+                resnet_block_groups: 每个残差block有几层卷积
+            Returns:
+                x: 最终生成的图像
+        """
+        super().__init__()
+        # 时间嵌入(DDPM需要知道step信息)
+        time_dim = layer_dims[0] * 4
+        self.time_mlp = nn.Sequential(
+            SinusoidalPositionEmbeddings(layer_dims[0]),
+            nn.Linear(layer_dims[0], time_dim),
+            nn.GELU(),
+            nn.Linear(time_dim, time_dim),
+        )
+        # Encoder
+        self.encoder = Encoder(input_dim, layer_dims, time_dim, resnet_block_groups)
+        # Decoder
+        self.decoder = Decoder(output_dim, layer_dims, time_dim, resnet_block_groups)
+        self.init_weights()
+
+
+    def forward(self, x, time):
+        # time embedding
+        t = self.time_mlp(time)
+        # 编码
+        x, skips = self.encoder(x, t)
+        # 解码
+        x = self.decoder(x, skips, t)
+        return x
+
+
+    def init_weights(self):
+        """权重初始化
+        """
+        def weight_init(m):
+            if isinstance(m, (nn.Linear, nn.Conv2d, WeightStandardizedConv2d)):
+                nn.init.normal_(m.weight, mean=0.0, std=0.02)
+                if m.bias is not None: nn.init.zeros_(m.bias)
+            elif isinstance(m, (nn.GroupNorm, nn.BatchNorm2d, nn.LayerNorm)):
+                nn.init.ones_(m.weight); nn.init.zeros_(m.bias)
+        self.apply(weight_init)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ========== Debug 用例 ==========
 if __name__ == '__main__':
+    init_dim = 96
     model = UNet(
-        dim=64,                 # 基础通道维度
-        init_dim=None,          # 默认为 dim
-        out_dim=3,              # 输出通道数（比如重建 RGB 图像）
-        dim_mults=(1, 2, 4),    # 三层 U 结构
-        channels=3,             # 输入通道 RGB
-        self_condition=False,   # 不使用自条件
+        input_dim=3,
+        output_dim=3,
+        # 配置 encoder / decoder 每一层的通道数
+        layer_dims=[init_dim*1, init_dim*1, init_dim*2, init_dim*4],
     )
+    # ========== Step 1. 统计模型参数量 ==========
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print("🧩 模型参数统计：")
+    print(f"  ➤ 总参数量：{total_params:,}")
+    print(f"  ➤ 可训练参数量：{trainable_params:,}")
+    print(f"  ➤ 参数占用显存约：{total_params * 4 / 1024 / 1024:.2f} MB (float32)")
 
-    # ========== Step 2. 构造假输入 ==========
-    B, C, H, W = 2, 3, 64, 64   # batch=2，64x64 RGB 图片
+    # ========== Step 2. 构造输入 ==========
+    B, C, H, W = 2, 3, 128, 128
     x = torch.randn(B, C, H, W)
-    t = torch.randint(0, 1000, (B,))  # 时间步整数，可视为 timestep
+    t = torch.randint(0, 1000, (B,))
 
-    # ========== Step 3. 前向传播测试 ==========
+    # ========== Step 3. 前向传播 ==========
     with torch.no_grad():
         y = model(x, t)
-        print(f"输入: {x.shape} -> 输出: {y.shape}")
+        print(f"\n输入: {x.shape} -> 输出: {y.shape}")
 
-    # ========== Step 4. 反向传播测试 ==========
+    # ========== Step 4. 反向传播 ==========
     y = model(x, t)
     loss = y.mean()
     loss.backward()
-    print("✅ 前向和反向传播均成功！")
-
-
+    print("✅ 前向 + 反向传播成功！")

@@ -40,7 +40,8 @@ class NecessaryHook():
             flag_metric_name = self.hook_after_eval(runner)
             # 保存权重
             if runner.accelerator.is_main_process:
-                save_ckpt(runner.cur_epoch, runner.eval_interval, runner.model, runner.scheduler,
+                model_unwrapped = runner.accelerator.unwrap_model(runner.model)
+                save_ckpt(runner.cur_epoch, runner.eval_interval, model_unwrapped, runner.scheduler,
                         runner.log_dir, runner.runner_logger.argsHistory, flag_metric_name)
 
     def hook_after_eval(self, runner):

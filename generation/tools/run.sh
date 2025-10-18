@@ -9,7 +9,12 @@ cd /mnt/yht/code/HeltonPretrain
 
 
 
-# ddpm_unet
+# ddpm_unet_FlickrBreeds
+# /mnt/yht/env/yht_pretrain/bin/python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 --master_port=29558 \
+#     tools/train.py \
+#     --config generation/configs/ddpm_unet_ddp.py
+
+# ddpm_unet_DIOR
 /mnt/yht/env/yht_pretrain/bin/python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 --master_port=29558 \
     tools/train.py \
-    --config /mnt/yht/code/HeltonPretrain/generation/configs/ddpm_unet_ddp.py
+    --config generation/configs/ddpm_unet_DIOR_ddp.py

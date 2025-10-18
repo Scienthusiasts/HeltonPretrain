@@ -310,10 +310,11 @@ class RunnerLogger:
 
             for line in model_table.split('\n'):
                 self.logger.info(line)
-            self.logger.info(f"Total Parameters: {summary['total_parameters']:,}")
-            self.logger.info(f"Trainable Parameters: {summary['trainable_parameters']:,}")
-            self.logger.info(f"Non-trainable Parameters: {summary['non_trainable_parameters']:,}")
-            self.logger.info(f"Estimated Memory Usage: {summary['parameter_memory_MB']:.2f} MB \n")
+            self.logger.info(f"🧩 Model Info:")
+            self.logger.info(f"  ➤ Total Parameters: {summary['total_parameters']:,}")
+            self.logger.info(f"  ➤ Trainable Parameters: {summary['trainable_parameters']:,}")
+            self.logger.info(f"  ➤ Non-trainable Parameters: {summary['non_trainable_parameters']:,}")
+            self.logger.info(f"  ➤ Estimated Memory Usage: {summary['parameter_memory_MB']:.2f} MB \n")
         finally:
             # 恢复原 formatter
             for h, f in zip(handlers, original_formatters):
