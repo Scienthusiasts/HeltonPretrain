@@ -32,10 +32,7 @@ class NecessaryHook():
             Args:
                 runner: Runner实例
         """
-        if runner.cur_epoch % runner.eval_interval != 0:
-            return
-        # 只在主进程上评估
-        if runner.accelerator.is_main_process:
+        if (runner.cur_epoch % runner.eval_interval == 0 or runner.cur_epoch == runner.epoch) and runner.accelerator.is_main_process:
             # 评估+记录/打印日志
             flag_metric_name = self.hook_after_eval(runner)
             # 保存权重

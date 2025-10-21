@@ -73,7 +73,23 @@ def natural_key(s: str):
     except Exception:
         return s.lower()
 
-        
+
+
+
+def to_device(batch, device, non_blocking=True):
+    """递归地将所有tensor移动到指定device
+    """
+    if torch.is_tensor(batch):
+        return batch.to(device, non_blocking=non_blocking)
+    elif isinstance(batch, dict):
+        return {k: to_device(v, device, non_blocking) for k, v in batch.items()}
+    elif isinstance(batch, (list, tuple)):
+        return type(batch)(to_device(v, device, non_blocking) for v in batch)
+    else:
+        # 非tensor类型直接返回
+        return batch
+    
+
 
 
 def init_weights(model, init_type, mean=0, std=0.01):

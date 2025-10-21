@@ -10,13 +10,14 @@ from functools import partial
 from torch.utils.data import DataLoader
 from accelerate import Accelerator  
 
-from utils.utils import seed_everything, accelerate_worker_init_fn, worker_init_fn, get_args, dynamic_import_class
+from utils.utils import seed_everything, accelerate_worker_init_fn, worker_init_fn, get_args, dynamic_import_class, to_device
 from utils.ckpts_utils import train_resume
 from utils.log_utils import *
 from utils.hooks_accelerate import NecessaryHook
 # 需要import才能注册
 from pretrain import * 
 from generation import * 
+from detection import * 
 from optimization import *
 from utils.register import MODELS, DATASETS, OPTIMIZERS, SCHEDULERS, EVALPIPELINES
 
@@ -136,6 +137,8 @@ class Trainer():
         self.call_hooks("before_batch", runner=self)
 
         # 一个batch的前向传播+计算损失 
+        # 确保 batch_datas 的所有数据已经在 self.device 上(batch_datas的组织形式是list)
+        batch_datas = to_device(batch_datas, self.device, non_blocking=True)
         self.losses = self.model(batch_datas, return_loss=True)
         # 将上一次迭代计算的梯度清零 
         self.optimizer.zero_grad()
@@ -149,11 +152,6 @@ class Trainer():
         # 更新权重
         self.optimizer.step()
 
-
-        # print('begin')
-        # print(self.losses)
-        # print('end')
-        
         self.call_hooks("after_batch", runner=self)
 
 

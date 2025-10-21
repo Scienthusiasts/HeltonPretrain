@@ -33,7 +33,7 @@ class NecessaryHook():
                 runner: Runner实例
         """
         if runner.mode == 'train' or (runner.mode == 'train_ddp' and dist.get_rank() == 0):
-            if runner.cur_epoch % runner.eval_interval == 0:
+            if runner.cur_epoch % runner.eval_interval == 0 or runner.cur_epoch == runner.epoch:
                 # 评估+记录/打印日志
                 flag_metric_name = self.hook_after_eval(runner)
                 # 保存权重

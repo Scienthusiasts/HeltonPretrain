@@ -19,14 +19,16 @@ HeltonX:
 │     ├─accelerate_ddp.yaml         (通用, Accelerator库ddp训练配置文件)
 │     └─accelerate_single_gpu.yaml  (通用, Accelerator库单卡训练配置文件)
 ├─tools
-│  ├─train.py  (通用, 训练pipeline)
-│  └─eval.py   (通用, 评估pipeline)
+│  ├─train.py            (通用, 训练pipeline)
+│  ├─train_accelerate.py (通用, 基于Accelerator库的训练pipeline)
+│  └─eval.py             (通用, 评估pipeline)
 ├─utils            
-│  ├─utils.py       (通用, 一些可能用到的方法)
-│  ├─ckpts_utils.py (通用, 权重load/save相关逻辑)
-│  ├─log_utils.py   (通用, 日志记录逻辑)
-│  ├─hooks.py       (通用, 钩子机制, 实现训练,评估时必用的方法)
-│  └─register.py    (通用, 注册机制)
+│  ├─utils.py            (通用, 一些可能用到的方法)
+│  ├─ckpts_utils.py      (通用, 权重load/save相关逻辑)
+│  ├─log_utils.py        (通用, 日志记录逻辑)
+│  ├─hooks.py            (通用, 钩子机制, 实现训练,评估时必用的方法)
+│  ├─hooks_accelerate.py (通用, 钩子机制(调整适配accelerate), 实现训练,评估时必用的方法)
+│  └─register.py         (通用, 注册机制)
 ├─optimization
 │  ├─optimizers.py  (通用, 优化器)
 │  └─schedulers.py  (通用, 学习率decay)
@@ -48,8 +50,10 @@ HeltonX:
 │     ├─test.py            (测试相关逻辑, 完善中)
 │     ├─run.sh             (DDP训练脚本)
 │     └─run_accelerate.sh  (基于Accelerator库的DDP训练脚本)
-└─generation    (同pretrain)
-   └─... ...
+├─generation    (同pretrain)
+│   └─... ...
+└─detection     (同pretrain)
+    └─... ...
 ```
 
 ###  `utils/register.py`
@@ -144,8 +148,9 @@ python pretrain/tools/test.py
 | `2025/09/26` |                    ✅ 添加 timm DINOv3 VFM                    |
 | `2025/09/29` |                     ✅ 添加 VFMs 蒸馏损失                     |
 | `2025/10/4`  |             ✅ 添加基于 CLIP 蒸馏的多任务分类模型             |
-| `2025/10/11` | ➡️ 添加生成任务`./generation`, 支持 DDPM/DDIM (开发中，目前代码逻辑还不够清晰) |
+| `2025/10/11` | ➡️ 支持生成任务`./generation`, 支持 DDPM/DDIM (开发中，目前代码逻辑还不够清晰) |
 | `2025/10/12` |       ✨ **支持 `Accelerate`(一键 DDP、混合精度训练)**        |
+| `2025/10/21` | ✅ 支持检测任务`./detection`，支持FCOS检测器，COCO格式数据读取 |
 
 
 

@@ -16,6 +16,10 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from utils.register import EVALPIPELINES
 
 
+
+
+
+
 @EVALPIPELINES.register
 class PretrainEvalPipeline():
     '''一个epoch的评估(基于验证集)
