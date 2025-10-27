@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import math
 from utils.register import MODELS
 
 
@@ -127,20 +128,27 @@ class QFocalLoss(nn.Module):
 
 
 
+
+
+
+
 @MODELS.register
-class GIoULoss(nn.Module):
+class IoULoss(nn.Module):
     '''L2损失
     '''
-    def __init__(self, reduction='mean'):
-        super(GIoULoss, self).__init__()
+    def __init__(self, iou_type, xywh=False, reduction='mean'):
+        super(IoULoss, self).__init__()
         self.reduction = reduction
+        self.iou_type = iou_type
+        self.xywh = xywh
+        self.eps = 1e-7
 
 
     def forward(self, pred, target):
         """
         """
-        giou = self.giou(pred, target)
-        loss = 1. - giou
+        iou = self.bbox_iou_pairwise(pred, target)
+        loss = 1. - iou
         if self.reduction=='mean':
             return loss.mean()
         if self.reduction=='none':
@@ -148,35 +156,57 @@ class GIoULoss(nn.Module):
         if self.reduction=='sum':
             return loss.sum()
         
-
-    def giou(self, preds, targets):
-        '''计算GIoU(preds, targets均是原始的非归一化距离(ltrb, 注意不是坐标))
+    def bbox_iou_pairwise(self, box1, box2):
+        """计算 box1 和 box2 的 IoU (对应位置一对一计算)
             Args:
-                preds:   shape=[total_anchor_num, 4(l, t, r, b)]
-                targets: shape=[total_anchor_num, 4(l, t, r, b)] 
+                box1: [total_anchor_num, 4(x, y, w, h / x0, y0, x1, y1)]
+                box2: [total_anchor_num, 4(x, y, w, h / x0, y0, x1, y1)]
             Returns:
-                giou:  shape=[total_anchor_num, 4]
-        '''
-        # 左上角和右下角
-        lt_min = torch.min(preds[:, :2], targets[:, :2])
-        rb_min = torch.min(preds[:, 2:], targets[:, 2:])
-        # 重合面积计算
-        wh_min = (rb_min + lt_min).clamp(min=0)
-        overlap = wh_min[:, 0] * wh_min[:, 1]#[n]
-        # 预测框面积和实际框面积计算
-        area1 = (preds[:, 2] + preds[:, 0]) * (preds[:, 3] + preds[:, 1])
-        area2 = (targets[:, 2] + targets[:, 0]) * (targets[:, 3] + targets[:, 1])
-        # 计算交并比
-        union = (area1 + area2 - overlap)
-        iou = overlap / (union + 1e-7)
-        # 计算外包围框
-        lt_max = torch.max(preds[:, :2],targets[:, :2])
-        rb_max = torch.max(preds[:, 2:],targets[:, 2:])
-        wh_max = (rb_max + lt_max).clamp(0)
-        G_area = wh_max[:, 0] * wh_max[:, 1]
-        # 计算GIOU
-        giou = iou - (G_area - union) / G_area.clamp(1e-10)
-        return giou
+                iou:  [total_anchor_num]
+        """
+        if self.xywh:  # (x, y, w, h) → (x1, y1, x2, y2)
+            x1, y1, w1, h1 = box1.unbind(-1)
+            x2, y2, w2, h2 = box2.unbind(-1)
+            b1_x1, b1_x2 = x1 - w1 / 2, x1 + w1 / 2
+            b1_y1, b1_y2 = y1 - h1 / 2, y1 + h1 / 2
+            b2_x1, b2_x2 = x2 - w2 / 2, x2 + w2 / 2
+            b2_y1, b2_y2 = y2 - h2 / 2, y2 + h2 / 2
+        else:  # (x1, y1, x2, y2)
+            b1_x1, b1_y1, b1_x2, b1_y2 = box1.unbind(-1)
+            b2_x1, b2_y1, b2_x2, b2_y2 = box2.unbind(-1)
+            w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1
+            w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1
 
+        # 相交区域
+        inter_w = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0)
+        inter_h = (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
+        inter = inter_w * inter_h
+        # 各自面积
+        area1 = (b1_x2 - b1_x1) * (b1_y2 - b1_y1)
+        area2 = (b2_x2 - b2_x1) * (b2_y2 - b2_y1)
+        # 并集面积
+        union = area1 + area2 - inter + self.eps
+        # IoU
+        iou = inter / union
 
+        # 处理 GIoU / DIoU / CIoU
+        if self.iou_type in ["giou", "diou", "ciou"]:
+            cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # 包围盒宽度
+            ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # 包围盒高度
 
+            if self.iou_type in ["diou", "ciou"]:
+                c2 = cw ** 2 + ch ** 2 + self.eps
+                rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2)**2 +
+                        (b2_y1 + b2_y2 - b1_y1 - b1_y2)**2) / 4
+                if self.iou_type == "ciou":
+                    v = (4 / math.pi**2) * (torch.atan((b2_x2 - b2_x1) / (b2_y2 - b2_y1 + self.eps)) -
+                                            torch.atan((b1_x2 - b1_x1) / (b1_y2 - b1_y1 + self.eps)))**2
+                    with torch.no_grad():
+                        alpha = v / (v - iou + 1 + self.eps)
+                    return iou - (rho2 / c2 + v * alpha)  # CIoU
+                return iou - rho2 / c2  # DIoU
+            # GIoU
+            c_area = cw * ch + self.eps
+            return iou - (c_area - union) / c_area
+        # IoU
+        return iou

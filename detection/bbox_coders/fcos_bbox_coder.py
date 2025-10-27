@@ -15,6 +15,10 @@ class FCOSBBoxCoder(nn.Module):
 
     """
     def __init__(self, strides=[8, 16, 32, 64, 128]):
+        """
+            Args:
+                strides: 每一个尺度特征图相对于原图的下采样率
+        """
         super(FCOSBBoxCoder, self).__init__()
         self.strides = strides
 
@@ -24,7 +28,7 @@ class FCOSBBoxCoder(nn.Module):
             Args:
                 cls_logits:  网络预测的类别logits     [[bs, cls_num, h1, w1], ..., [[bs, cls_num, hn, wn]]]
                 cnt_logits:  网络预测的中心度logits   [[bs, 1, h1, w1], ..., [[bs, 1, hn, wn]]]
-                reg_preds:   网络预测的回归值         [[bs, 4, h1, w1], ..., [[bs, 4, hn, wn]]]
+                reg_preds:   网络预测的回归值         [[bs, 4, h1, w1], ..., [[bs, 4=(l,t,r,b), hn, wn]]]
             Returns:
                 boxes_score_classes: 解码后的预测结果 [bs, total_anchor_num, 4+1+1=(x0, y0, x1, y1, score, label)]
         """
@@ -38,22 +42,24 @@ class FCOSBBoxCoder(nn.Module):
         # 对分类结果归一化到0,1之间
         cls_preds = torch.sigmoid(cls_preds)
         cnt_preds = torch.sigmoid(cnt_preds)
-        # 获得得分最高对应的类别得分和类别
-        cls_scores, cls_classes = torch.max(cls_preds,dim=-1)
+        # 获得得分最高对应的类别得分和类别 [bs, total_anchor_num, 1]
+        cls_scores, cls_classes = torch.max(cls_preds, dim=-1, keepdim=True)
 
         '''生成网格(类似anchor point, 每个网格的中心点)'''
         lvl_size = [feat.shape[2:4] for feat in cnt_logits]
+        # [total_anchor_num, 2=(cx, cy)]
         grids = self.gen_grid(lvl_size).to(cnt_preds.device)
         
         '''置信度是类别得分和centerness的乘积'''
-        cls_scores = cls_scores * cnt_preds.squeeze(dim=-1)
-        # 通过中心点和网络预测的tlbr获得box的左上角右下角点xyxy(原图的未归一化坐标)
-        left_top = grids[None, :, :] - reg_preds[..., :2]
-        right_bottom = grids[None, :, :] + reg_preds[..., 2:]
+        cls_scores = cls_scores * cnt_preds
+        # 通过中心点坐标和网络预测的ltrb获得box的左上角右下角点xyxy(原图的未归一化坐标)
+        # grids多一个bs维度
+        left_top = grids[None, :, :] - reg_preds[..., :2]      # (cx, cy) - (l, t) = (x0, y0)
+        right_bottom = grids[None, :, :] + reg_preds[..., 2:]  # (cx, cy) + (r, b) = (x1, y1)
         # boxes.shape = [bs, total_anchor_num, 2+2=4]
         boxes = torch.cat([left_top, right_bottom], dim=-1)
         # 将预测的坐标, 类别置信度, 类别拼在一起 predictions.shape = [bs, total_anchor_num, 4+1+1]
-        predictions = torch.cat([boxes, torch.unsqueeze(cls_scores.float(),-1), torch.unsqueeze(cls_classes.float(),-1)], dim=-1)
+        predictions = torch.cat([boxes, cls_scores, cls_classes], dim=-1)
         return predictions
 
 
@@ -62,7 +68,7 @@ class FCOSBBoxCoder(nn.Module):
             Args:
                 lvl_size: list, 每一个多尺度特征图的尺寸
             Returns: 
-                grids: 所有尺度的网格中心坐标 [total_anchor_num, 2]
+                grids: 所有尺度的网格中心坐标 [total_anchor_num(所有尺度concat), 2=(cx, cy)]
 
         """
         # 遍历所有尺度

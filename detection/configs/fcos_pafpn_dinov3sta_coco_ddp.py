@@ -33,7 +33,7 @@ bs = 4
 lr = 2e-4
 warmup_lr = 1e-5
 lr_decay = 1e-1
-load_ckpt = None
+load_ckpt = 'log/fcos_pafpn_dinov3sta_coco_train_ddp/2025-10-24-11-55-27_train_ddp/last.pt'
 log_interval = 50
 eval_interval = 1
 resume = None
@@ -81,7 +81,9 @@ model_cfgs = dict(
             alpha=0.25
         ),
         reg_loss=dict(
-            type="GIoULoss",
+            type="IoULoss",
+            iou_type='giou',
+            xywh=False,
             reduction="mean",
         ),
         assigner=dict(

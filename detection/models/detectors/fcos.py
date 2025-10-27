@@ -38,12 +38,15 @@ class FCOS(nn.Module):
     def forward(self, datas, return_loss=True):
         '''一个batch的前向流程(不包括反向传播, 更新梯度)(核心, 要更改训练pipeline主要改这里)
         Args:
-            batch_imgs:   一个batch里的图像      例:shape=[bs, 3, 600, 600]
-            batch_bboxes: 一个batch里的GT框      例:[(1, 4), (4, 4), (4, 4), (1, 4), (5, 4), (2, 4), (3, 4), (1, 4)]
-            batch_labels: 一个batch里的GT框类别  例:[(1,), (4,), (4,), (1,), (5,), (2,), (3,), (1,)]
+            datas[0]: batch_imgs:   一个batch里的图像      [bs, 3, H, W]
+            datas[1]: batch_bboxes: 一个batch里的GT框      [[gt_nums_per_img, 4=(x, y, w, h)], ..., [...]]
+            datas[2]: batch_labels: 一个batch里的GT框类别  [[gt_nums_per_img], ..., [...]]
             return_loss:  只前向或计算损失
         Returns:
             losses: 所有损失组成的列表(里面必须有一个total_loss字段, 用于反向传播)
+            cls_logit: 类别logits   [bs, nc, w, h]
+            cnt_logit: 中心度logits [bs, 1, w, h]
+            reg_pred:  回归值       [bs, 4=(l, t, r, b), w, h]
         '''
         if return_loss:
             batch_imgs, batch_bboxes, batch_labels = datas[0], datas[1], datas[2]
@@ -67,7 +70,7 @@ class FCOS(nn.Module):
             Args:
                 image:  读取的图像 [1, 3, H, W]
             # Returns:
-                boxes:       网络回归的box坐标    [obj_nums, 4]
+                boxes:       网络回归的box坐标    [obj_nums, 4=(x0, y0, x1, y1)]
                 box_scores:  网络预测的box置信度  [obj_nums]
                 box_classes: 网络预测的box类别    [obj_nums]
         '''

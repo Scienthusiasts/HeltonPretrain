@@ -15,7 +15,7 @@ class FCOSAssigner(nn.Module):
         """
             Args:
                 img_size:            网络输入的图像尺寸 比如:[640, 640]
-                strides:             多尺度特征的尺寸
+                strides:             多尺度特征相对于原图的下采样率
                 limit_ranges:        每个尺度负责预测的gt框的尺寸范围
                 sample_radiu_ratio:  stride * sample_radiu_ratio半径内的样本为正样本
         """
@@ -28,7 +28,8 @@ class FCOSAssigner(nn.Module):
 
 
     def forward_single(self, gt_boxes, gt_labels, stride, limit_range):
-        """单层特征层的正负样本分配"""
+        """单层特征层的正负样本分配
+        """
         feat_w = self.img_size[0] // stride
         feat_h = self.img_size[1] // stride
         h_mul_w = feat_w * feat_h
@@ -36,7 +37,7 @@ class FCOSAssigner(nn.Module):
 
         '''获得网格'''
         # grids.shape [w*h, 2]
-        grids  = self.get_grids(feat_w, feat_h, stride).type_as(gt_boxes)
+        grids  = self.get_grids_single(feat_w, feat_h, stride).type_as(gt_boxes)
         x, y   = grids[:, 0], grids[:, 1]
         
         '''计算两两ltrb偏移量, 以及相应指标, 用于后续筛选'''
@@ -120,8 +121,8 @@ class FCOSAssigner(nn.Module):
     def forward(self, gt_boxes, gt_labels):
         '''FCOS正负样本分配
             Args:
-                gt_boxes:   GTbox  [[num_bboxes, 4=(x, y, w, h)], ..., [...]]
-                gt_labels:  类别gt [[num_bboxes], ..., [...]]
+                gt_boxes:   gt框坐标  [[num_bboxes, 4=(x, y, w, h)], ..., [...]]
+                gt_labels:  类别gt    [[num_bboxes], ..., [...]]
 
             Returns:
         '''
@@ -149,7 +150,13 @@ class FCOSAssigner(nn.Module):
 
 
 
-    def get_grids(self, w, h, stride):
+    def get_grids_single(self, w, h, stride):
+        """生成某个尺度的网格中心点坐标
+            Args:
+                w:      当前尺度特征图的w
+                h:      当前尺度特征图的h
+                stride: 当前尺度特征图相对原图的下采样率
+        """
         shifts_x = torch.arange(0, w * stride, stride, dtype=torch.float32)
         shifts_y = torch.arange(0, h * stride, stride, dtype=torch.float32)
 

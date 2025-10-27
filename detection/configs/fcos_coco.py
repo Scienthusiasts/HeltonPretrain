@@ -81,7 +81,9 @@ model_cfgs = dict(
             alpha=0.25
         ),
         reg_loss=dict(
-            type="GIoULoss",
+            type="IoULoss",
+            iou_type='giou',
+            xywh=False,
             reduction="mean",
         ),
         assigner=dict(

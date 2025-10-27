@@ -77,8 +77,15 @@ class FCOSHead(nn.Module):
     
 
 
-    def forward_single(self, lvl_x, lvl):
+    def forward_single(self, lvl, lvl_x):
         """单个尺度的前向传播
+            Args:
+                lvl:   当前处理的是第几个尺度
+                lvl_x: 每个尺度的特征 [bs, c, lvl_h, lvl_w]
+            Returns:
+                cls_logit: [bs, nc, w, h]
+                cnt_logit: [bs, 1, w, h]
+                reg_pred:  [bs, 4=(l, t, r, b), w, h]
         """
         cls_conv_out = self.cls_conv(lvl_x)
         reg_conv_out = self.reg_conv(lvl_x)
@@ -92,13 +99,19 @@ class FCOSHead(nn.Module):
         """前向传播，使用 multi_apply 并行处理多尺度特征层
         """
         n = range(len(x))
-        cls_logits, cnt_logits, reg_preds = multi_apply(self.forward_single, x, n)
+        cls_logits, cnt_logits, reg_preds = multi_apply(self.forward_single, n, x)
         return cls_logits, cnt_logits, reg_preds
 
 
 
 
     def loss(self, fpn_feat, batch_bboxes, batch_labels):
+        """
+            Args:
+                fpn_feat:
+                batch_bboxes:
+                batch_labels:
+        """
         # head部分前向
         # [[bs, cls_num, w, h],...,[...]] [[bs, 1, w, h],...,[...]] [[bs, 4, w, h],...,[...]]
         cls_logits, cnt_logits, reg_preds = self.forward(fpn_feat)
@@ -127,7 +140,10 @@ class FCOSHead(nn.Module):
         cnt_loss = self.cnt_loss(cnt_preds[pos_mask], cnt_targets[pos_mask])
         '''回归损失(正样本才计算)'''
         # 计算GIoU loss
-        reg_loss = self.reg_loss(reg_preds[pos_mask], reg_targets[pos_mask])
+        reg_preds, reg_targets = reg_preds[pos_mask], reg_targets[pos_mask]
+        reg_preds[:, :2]*=-1
+        reg_targets[:, :2]*=-1
+        reg_loss = self.reg_loss(reg_preds, reg_targets)
         '''loss以字典形式回传'''
         loss = dict(
             cls_loss = cls_loss,

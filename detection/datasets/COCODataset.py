@@ -71,10 +71,11 @@ class COCODataset(BaseDetDataset):
         '''重载data.Dataset父类方法, 获取数据集中数据内容
            这里通过pycocotools来读取图像和标签
            Returns:
-               image:  [1, H, W]
-               boxes:  list([[x, y, w, h], ..., [...]], ..., [...])
-               labels: list([int, ...], ..., [...])
-               img_id: list[img_id, ...] 评估时会用到, 其他时候用不到
+               image:    [1, H, W]
+               boxes:    list([[x, y, w, h], ..., [...]], ..., [...])
+               labels:   ([int, ...], ..., [...])
+               img_id:   list[img_id, ...] 评估时会用到, 其他时候用不到
+               raw_size: 原图(未resize)的尺寸 评估时会用到, 其他时候用不到
         '''   
         img_id = self.filter_img_inds[index]
         imgInfo = self.coco.loadImgs(img_id)[0]

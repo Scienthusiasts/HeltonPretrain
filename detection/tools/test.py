@@ -100,7 +100,7 @@ if __name__ == '__main__':
     nc = len(cat_names)
 
     img_size = [800, 800]
-    load_ckpt = 'log/fcos_pafpn_dinov3sta_coco_train_ddp/2025-10-23-00-53-30_train_ddp/last.pt'
+    load_ckpt = 'log/fcos_pafpn_dinov3sta_coco_train_ddp/2025-10-24-11-55-27_train_ddp/last.pt'
 
     '''模型配置参数'''
     model_cfgs = dict(
