@@ -50,7 +50,8 @@ class FPN(nn.Module):
         """上采样 + 相加
         """
         _, _, H, W = lower.shape
-        return F.interpolate(higher, size=(H, W), mode='bilinear', align_corners=False) + lower
+        # bilinear 可能会出现对齐误差(半像素偏移)
+        return F.interpolate(higher, size=(H, W), mode='nearest') + lower
 
 
     def forward(self, features):

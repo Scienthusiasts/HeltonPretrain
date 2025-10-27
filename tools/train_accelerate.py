@@ -100,6 +100,7 @@ class Trainer():
 
 
         '''日志模块'''
+        self.runner_logger = None
         if self.accelerator.is_main_process:
             self.runner_logger = RunnerLogger(self.mode, self.log_dir, log_interval, eval_interval, self.train_batch_num)
             self.log_dir = self.runner_logger.log_dir

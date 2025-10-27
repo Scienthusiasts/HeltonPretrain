@@ -12,6 +12,7 @@ from detection.utils.utils import OpenCVDrawBox
 from utils.register import EVALPIPELINES
 from utils.utils import to_device
 from detection.datasets.preprocess import Transforms
+from detection.utils.utils import resize_tensor_to_multiple
 from utils.register import MODELS
 
 
@@ -44,6 +45,8 @@ def infer_single_img(model, device, img_path, cat_names, save_vis_path):
 
     image = np.array(Image.open(img_path).convert('RGB'))
     tensor_img = torch.tensor(transform.test_transform(image=image)['image'])
+    tensor_img = resize_tensor_to_multiple(tensor_img, 16)
+
     resize_img = ((tensor_img.numpy() * std + mean) * 255).astype(np.uint8)
     tensor_img = tensor_img.permute(2,0,1).unsqueeze(0).to(device)
 
@@ -53,7 +56,7 @@ def infer_single_img(model, device, img_path, cat_names, save_vis_path):
         image2color[cat] = (np.random.random((1, 3)) * 0.7 + 0.3).tolist()[0]
 
     '''推理一张图像'''
-    boxes, box_scores, box_classes = model.infer(tensor_img)
+    boxes, box_scores, box_classes = model.infer(tensor_img, vis_heatmap=True, save_vis_path='./det_res.jpg')
     #  检测出物体才继续    
     if len(boxes) == 0: 
         print(f'no objects in image: {img_path}.')
@@ -79,7 +82,6 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # cat_names = ["aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", 
     #             "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
-
     cat_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
             'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
             'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     nc = len(cat_names)
 
     img_size = [800, 800]
-    load_ckpt = 'log/fcos_coco_train_ddp/2025-10-21-16-36-31_train_ddp/last.pt'
+    load_ckpt = 'log/fcos_pafpn_dinov3sta_coco_train_ddp/2025-10-23-00-53-30_train_ddp/last.pt'
 
     '''模型配置参数'''
     model_cfgs = dict(
@@ -114,19 +116,19 @@ if __name__ == '__main__':
             strides=[8, 16, 32, 64, 128]
         ),
         backbone=dict(
-            type="TIMMBackbone",
-            model_name="resnet50.a1_in1k",
-            pretrained=False,
-            out_layers=[2,3,4],
-            froze_backbone=False,
-            load_ckpt='ckpts/backbone_resnet50.a1_in1k.pt'
+            type="DINOv3STA",
+            dino_name="vit_small_patch16_dinov3.lvd1689m",
+            sta_layer_dims=[64, 128, 128, 256, 512],
+            fuse_layer_dims=[128, 256, 512],
+            dino_ckpt="ckpts/vit_small_patch16_dinov3.lvd1689m.pt",
+            froze_dino=True
         ), 
         fpn=dict(
-            type="FPN",
-            in_channels=[512, 1024, 2048], 
-            out_channel=256, 
-            num_extra_levels=2,
-        ), 
+            type="PAFPN",
+            in_channels=[128, 256, 512],
+            out_channel=256,
+            num_extra_levels=2
+        ),
         head=dict(
             type="FCOSHead",
             nc=nc, 

@@ -105,6 +105,7 @@ class Trainer():
         self.scheduler = SCHEDULERS.build_from_cfg(scheduler_cfgs["warmup_schedulers_cfgs"], base_scheduler=base_scheduler, optimizer=self.optimizer)
 
         '''日志模块'''
+        self.runner_logger = None
         self.runner_logger = RunnerLogger(self.mode, self.log_dir, log_interval, eval_interval, self.train_batch_num)
         self.log_dir = self.runner_logger.log_dir
 

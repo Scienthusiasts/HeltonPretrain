@@ -88,7 +88,8 @@ class FCOS(nn.Module):
             # W, H 原始图像的大小
             H, W = image.shape[2:]
             '''是否可视化obj heatmap'''
-            if vis_heatmap:vis_FCOS_heatmap(cls_logits, cnt_logits, [W, H], self.img_size, image, box_classes, save_vis_path=save_vis_path)
+            if vis_heatmap:
+                vis_FCOS_heatmap(cls_logits, cnt_logits, [W, H], self.img_size, image, save_vis_path=save_vis_path)
             
             # 只需要返回3要素:坐标, 得分, 类别
             return boxes, box_scores, box_classes

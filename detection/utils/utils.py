@@ -15,6 +15,33 @@ import matplotlib.pyplot as plt
 
 
 
+
+
+def resize_tensor_to_multiple(img: torch.Tensor, n: int) -> torch.Tensor:
+    """
+    将输入Tensor的 H 和 W 调整为最接近的、能被 n 整除的尺寸。
+        Args:
+            img (Tensor): 输入图像, 形状为 [H, W, C]
+            n (int): 目标倍数 (例如 16, 32 等)
+        Returns:
+            Tensor: 调整后的图像
+    """
+    H, W, C = img.shape
+    # 计算最接近且可被 n 整除的尺寸
+    new_H = int(round(H / n) * n)
+    new_W = int(round(W / n) * n)
+    new_H = max(n, new_H)
+    new_W = max(n, new_W)
+    # 调整形状为 [1, C, H, W]
+    img = img.permute(2, 0, 1).unsqueeze(0)
+    # 进行双线性插值
+    resized_img = F.interpolate(img, size=(new_H, new_W), mode='bilinear', align_corners=False)
+    # 还原形状为 [H, W, C]
+    resized_img = resized_img.squeeze(0).permute(1, 2, 0)
+    return resized_img 
+
+
+
 def map_boxes_to_origin_size(boxes, orig_size, target_size):
     """
     将基于 [S, S] (resize+padding 后) 图像预测的 boxes 

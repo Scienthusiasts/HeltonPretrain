@@ -10,6 +10,7 @@ import random
 import cv2
 # 自定义
 from utils.register import DATASETS
+from utils.wrappers import DDPSafeDataset
 from utils.utils import seed_everything, worker_init_fn, natural_key
 from detection.datasets.preprocess import Transforms
 # 允许加载截断的图像
@@ -22,7 +23,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 @DATASETS.register
-class BaseDetDataset(Dataset):
+class BaseDetDataset(Dataset, DDPSafeDataset):
 
     def __init__(self, img_size, format_mode, mode=True, mosaic_p=0, mixup_p=0):
         """__init__() 为默认构造函数，传入数据集类别（训练或测试），以及数据集路径

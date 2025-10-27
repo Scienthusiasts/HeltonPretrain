@@ -8,6 +8,7 @@ from utils.utils import init_weights
 from utils.register import MODELS
 from detection.utils.fcos_utils import *
 from detection.losses import *
+from utils.utils import multi_apply
 
 
 
@@ -65,11 +66,8 @@ class FCOSHead(nn.Module):
         self.reg_loss = reg_loss
 
         # 权重初始化
-        init_weights(self.cls_conv, 'normal', 0, 0.01)
-        init_weights(self.reg_conv, 'normal', 0, 0.01)
-        init_weights(self.cls_head, 'normal', 0, 0.01)
-        init_weights(self.cnt_head, 'normal', 0, 0.01)
-        init_weights(self.reg_head, 'normal', 0, 0.01)
+        for m in self.modules():
+            init_weights(m, 'normal', 0, 0.01)
         # 对分类头的偏置专门的初始化方式(目的是, 一开始网络的分类会倾向于背景, 可以从一个合理的状态开始训练):
         prior = 0.01
         nn.init.constant_(self.cls_head.bias, -math.log((1 - prior) / prior))
@@ -77,21 +75,27 @@ class FCOSHead(nn.Module):
         '''定义样本分配策略'''
         self.assigner = assigner
     
-    
-    def forward(self, x):
-        cls_logits = []
-        cnt_logits = []
-        reg_preds  = []
-        # 遍历不同尺度的特征层(p3-p7),得到预测结果
-        for lvl, lvl_x in enumerate(x):
-            cls_conv_out=self.cls_conv(lvl_x)
-            reg_conv_out=self.reg_conv(lvl_x)
 
-            cls_logits.append(self.cls_head(cls_conv_out))
-            cnt_logits.append(self.cnt_head(cls_conv_out))
-            # 这里回归出来就是原图尺寸下的偏移量
-            reg_preds.append(self.scale_exp[lvl](self.reg_head(reg_conv_out)))
+
+    def forward_single(self, lvl_x, lvl):
+        """单个尺度的前向传播
+        """
+        cls_conv_out = self.cls_conv(lvl_x)
+        reg_conv_out = self.reg_conv(lvl_x)
+        cls_logit = self.cls_head(cls_conv_out)
+        cnt_logit = self.cnt_head(cls_conv_out)
+        reg_pred  = self.scale_exp[lvl](self.reg_head(reg_conv_out))
+        return cls_logit, cnt_logit, reg_pred
+
+
+    def forward(self, x):
+        """前向传播，使用 multi_apply 并行处理多尺度特征层
+        """
+        n = range(len(x))
+        cls_logits, cnt_logits, reg_preds = multi_apply(self.forward_single, x, n)
         return cls_logits, cnt_logits, reg_preds
+
+
 
 
     def loss(self, fpn_feat, batch_bboxes, batch_labels):
@@ -104,7 +108,7 @@ class FCOSHead(nn.Module):
         # 获得正样本(bool) [bs, total_anchor_num]
         pos_mask = (cnt_targets > -1).reshape(-1)
         '''计算损失'''
-        # 调整预测结果的形状:
+        # 调整预测结果的形状(将不同尺度的预测结果拼在一起):
         # [[bs, cls_num, 80, 80],...,[[bs, cls_num, 5, 5]]] -> [bs * total_anchor_num, cls_num]
         cls_preds = reshape_cat_out(cls_logits).reshape(-1, self.nc)
         # [[bs, 1, 80, 80],...,[[bs, 1, 5, 5]]] -> [bs * total_anchor_num, 1]

@@ -3,7 +3,7 @@ import torch.nn as nn
 from utils.utils import init_weights
 # 注册机制
 from utils.register import MODELS
-from utils.utils import NoSaveWrapper
+from utils.wrappers import NoSaveWrapper
 
 @MODELS.register
 class CLIPDistillEmbHead(nn.Module):

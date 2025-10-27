@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from utils.register import MODELS
-from utils.utils import NoSaveWrapper
+from utils.wrappers import NoSaveWrapper
 
 
 

@@ -36,7 +36,7 @@ class COCODataset(BaseDetDataset):
             img_size:      网络要求输入的图像尺寸
             mode:          train / valid
             map:           categories字段映射(COCO有80个类, 但是id却有到90)
-        '''      
+        '''     
         self.mode = mode
         self.nc = nc
         self.cat_names = cat_names
@@ -46,20 +46,26 @@ class COCODataset(BaseDetDataset):
         self.ann_json_path = ann_json_path
         self.mosaic_p=mosaic_p
         self.mixup_p=mixup_p
-        # 为实例注释初始化COCO的API
-        self.coco=COCO(ann_json_path)
-        # 获取数据集中所有图像对应的imgId
-        self.img_inds = self.coco.getImgIds()
-        # 如果标签的id正好不是按顺序来的，还需进行映射
         self.map = map
         self.inv_map = {v: k for k, v in self.map.items()} if self.map else None
-        '''过滤掉那些没有框的图像,很重要!!!'''
-        self.filter_img_inds = self.filter_img_by_id()
-        # 数据集大小
-        self.dataset_num = len(self.filter_img_inds)
                 
-
-    
+        '''使用通用 DDP 加载(只在rank0加载数据, 其他rank与rank0通信获取)'''
+        def _load_data():
+            # 为实例注释初始化COCO的API
+            coco = COCO(self.ann_json_path)
+            # 获取数据集中所有图像对应的imgId
+            img_inds = coco.getImgIds()
+            # 过滤掉那些没有框的图像
+            filter_img_inds = self.filter_img_by_id(coco, img_inds)
+            # 数据集大小
+            dataset_num = len(filter_img_inds)
+            return dict(coco=coco, img_inds=img_inds, filter_img_inds=filter_img_inds, dataset_num=dataset_num)
+        data = self.ddp_safe_load(_load_data)
+        self.coco = data['coco']
+        self.img_inds = data['img_inds']
+        self.filter_img_inds = data['filter_img_inds']
+        self.dataset_num = data['dataset_num']
+        
 
     def __getitem__(self, index):
         '''重载data.Dataset父类方法, 获取数据集中数据内容
@@ -124,22 +130,23 @@ class COCODataset(BaseDetDataset):
     
 
 
-    def filter_img_by_id(self):
+    def filter_img_by_id(self, coco, img_inds):
         '''过滤掉那些没标注的图像
         '''
         print('filtering no objects images...')
+        
         filter_img_inds = []
-        for i in tqdm(range(len(self.img_inds))):
+        for i in tqdm(range(len(img_inds))):
             # 获取图像信息(json文件 "images" 字段)
-            img_infos = self.coco.loadImgs(self.img_inds[i])[0]
+            img_infos = coco.loadImgs(img_inds[i])[0]
             # 得到当前图像里包含的BBox的所有id
-            ann_inds = self.coco.getAnnIds(imgIds=img_infos['id'])
+            ann_inds = coco.getAnnIds(imgIds=img_infos['id'])
             # anns (json文件 "annotations" 字段)
-            anns = self.coco.loadAnns(ann_inds)
+            anns = coco.loadAnns(ann_inds)
             if len(anns)!=0:
                 # 专门针对COCO数据集,这两张图片存在bbox的w或h=0的情况:
                 if img_infos['file_name'] not in ['000000200365.jpg', '000000550395.jpg', '9999985_00000_d_0000020.jpg']:
-                    filter_img_inds.append(self.img_inds[i])
+                    filter_img_inds.append(img_inds[i])
         return filter_img_inds
 
 

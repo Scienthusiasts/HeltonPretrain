@@ -16,7 +16,7 @@ import torch.distributed as dist
 
 
 
-def load_state_dict_with_prefix(model, load_ckpt, prefixes_to_try=['model.', 'module.', 'encoder.', 'backbone.', 'teacher.', 'student.']):
+def load_state_dict_with_prefix(model, load_ckpt, prefixes_to_try=['model.', 'module.', 'encoder.', 'backbone.', 'teacher.', 'student.'], state_dict=None):
     """自动处理权重键名前缀不匹配问题（双向适配）
     Args:
         model: 要加载权重的模型
@@ -26,10 +26,11 @@ def load_state_dict_with_prefix(model, load_ckpt, prefixes_to_try=['model.', 'mo
         加载了权重的模型
     """
     use_ddp = dist.is_initialized()
-    if not use_ddp or use_ddp and dist.get_rank() == 0:
-        print(f"➡️  loadong ckpt: {load_ckpt}")
+    if not state_dict:
+        if not use_ddp or use_ddp and dist.get_rank() == 0:
+            print(f"➡️  loadong ckpt: {load_ckpt}")
 
-    state_dict = torch.load(load_ckpt, map_location='cpu')
+        state_dict = torch.load(load_ckpt, map_location='cpu')
     
     # 首先提取模型权重（处理checkpoint中可能包含的其他信息）
     if 'model_state_dict' in state_dict:
@@ -172,15 +173,22 @@ def train_resume(resume, model, optimizer, scheduler, runner_logger, batch_nums)
             None
     '''  
     ckpt = torch.load(resume, map_location="cpu")
+    # resume后开始的epoch
     resume_epoch = ckpt['epoch'] + 1
-    model.load_state_dict(ckpt['model_state_dict'])
+    scheduler.last_epoch = batch_nums * resume_epoch
+    # model.load_state_dict(ckpt['model_state_dict'])
+    model = load_state_dict_with_prefix(model, load_ckpt=None, state_dict=ckpt['model_state_dict'])
     optimizer.load_state_dict(ckpt['optim_state_dict'])
     scheduler.base_scheduler.load_state_dict(ckpt['sched_state_dict'])
-    runner_logger.logger.info(f'resume:{resume}')
-    runner_logger.logger.info(f'resume_epoch:{resume_epoch}')
-    # 导入上一次中断训练时的args
-    json_dir, _ = os.path.split(resume)
-    runner_logger.argsHistory.loadRecord(json_dir)
-    scheduler.last_epoch = batch_nums * resume_epoch
+
+    # 主节点才进行日志记录
+    use_ddp = dist.is_initialized()
+    if not use_ddp or use_ddp and dist.get_rank() == 0:
+        runner_logger.logger.info(f'resume:{resume}')
+        runner_logger.logger.info(f'resume_epoch:{resume_epoch}')
+        # 导入上一次中断训练时的args
+        json_dir, _ = os.path.split(resume)
+        runner_logger.argsHistory.loadRecord(json_dir)
+
     return resume_epoch
 

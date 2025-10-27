@@ -1,8 +1,10 @@
+from typing import Any
 import torch.nn as nn
 import random
 import torch
 import numpy as np
 import argparse
+from functools import partial
 import importlib
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import RandomSampler
@@ -13,30 +15,27 @@ import torch.distributed as dist
 
 
 
+def multi_apply(func, *args, **kwargs) -> Any:
+    """将函数应用到一组参数上(常用于多尺度预测)
+      - 如果 func 每次返回多个值(tuple/list),则返回 tuple(list, list, ...)
+      - 如果 func 每次返回单个值(如 Tensor),则直接返回 list
 
-
-class NoSaveWrapper(nn.Module):
-    """使用了这个包装器的nn.Module模块, 在保存权重时不会保持该模块的权重
-       (常用于蒸馏模型的teacher)
     """
-    def __init__(self, module: nn.Module):
-        super().__init__()
-        self.module = module
+    pfunc = partial(func, **kwargs) if kwargs else func
+    map_results = list(map(pfunc, *args))
+    # 没有输入时返回空列表
+    if len(map_results) == 0:
+        return []  
 
-    def forward(self, *args, **kwargs):
-        return self.module(*args, **kwargs)
-
-    def state_dict(self, *args, **kwargs):
-        # 不保存
-        return {}  
-
-    def _load_from_state_dict(self, *args, **kwargs):
-        # 不加载
-        return  
-
-
-
-
+    first = map_results[0]
+    # 如果每次返回的是 tuple/list -> 保持原 mmcv 行为：按位置聚合并返回 tuple(list,...)
+    if isinstance(first, (tuple, list)):
+        # 确保每个返回的元素长度一致会由 zip 处理
+        return tuple(map(list, zip(*map_results)))
+    else:
+        # 单输出时，直接返回 list，便于直接赋值使用
+        return list(map_results)
+    
 
 
 
