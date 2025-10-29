@@ -9,11 +9,11 @@ import numpy as np
 from collections import Counter
 from detection.utils.metrics import *
 from detection.utils.utils import OpenCVDrawBox
-from utils.register import EVALPIPELINES
-from utils.utils import to_device
 from detection.datasets.preprocess import Transforms
 from detection.utils.utils import resize_tensor_to_multiple
-from utils.register import MODELS
+from heltonx.utils.register import EVALPIPELINES
+from heltonx.utils.utils import to_device
+from heltonx.utils.register import MODELS
 
 
 
@@ -144,7 +144,9 @@ if __name__ == '__main__':
                 alpha=0.25
             ),
             reg_loss=dict(
-                type="GIoULoss",
+                type="IoULoss",
+                iou_type='giou',
+                xywh=False,
                 reduction="mean",
             ),
             assigner=dict(
@@ -158,6 +160,6 @@ if __name__ == '__main__':
     )
     model = MODELS.build_from_cfg(model_cfgs).to(device)
     model.eval()
-    img_path = 'detection/demos/13.jpg'
+    img_path = 'detection/demos/cars.jpg'
     save_vis_path = './det_res.jpg'
     infer_single_img(model, device, img_path, cat_names, save_vis_path)

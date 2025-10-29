@@ -9,11 +9,11 @@ from PIL import Image, ImageFile
 import numpy as np
 
 from pretrain.utils.metrics import *
-from utils.utils import natural_key
+from heltonx.utils.utils import natural_key
 from pretrain.datasets.preprocess import Transforms
 # 需要import才能注册
 from pretrain import * 
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

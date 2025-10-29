@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from utils.utils import init_weights
+from heltonx.utils.utils import init_weights
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

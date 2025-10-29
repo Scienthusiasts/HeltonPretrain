@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 from generation.utils.utils import *
 from generation.models.blocks import *
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

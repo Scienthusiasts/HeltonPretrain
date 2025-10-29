@@ -11,8 +11,8 @@ import cv2
 from tqdm import tqdm
 from pycocotools.coco import COCO
 # 自定义
-from utils.register import DATASETS
-from utils.utils import seed_everything, worker_init_fn, natural_key
+from heltonx.utils.register import DATASETS
+from heltonx.utils.utils import seed_everything, worker_init_fn, natural_key
 from detection.datasets.preprocess import Transforms
 from detection.datasets.BaseDataset import BaseDetDataset
 # 允许加载截断的图像

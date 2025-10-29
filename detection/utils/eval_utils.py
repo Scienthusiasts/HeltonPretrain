@@ -6,8 +6,8 @@ from torch import nn
 from tqdm import tqdm
 from detection.utils.metrics import *
 from detection.utils.utils import OpenCVDrawBox, map_boxes_to_origin_size
-from utils.register import EVALPIPELINES
-from utils.utils import to_device
+from heltonx.utils.register import EVALPIPELINES
+from heltonx.utils.utils import to_device
 
 
 

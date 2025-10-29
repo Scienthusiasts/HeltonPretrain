@@ -10,9 +10,10 @@ import torch.distributed as dist
 # 允许加载截断的图像
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 # 自定义
-from utils.register import DATASETS
+from heltonx.utils.register import DATASETS
+from heltonx.utils.utils import seed_everything, worker_init_fn
 from generation.datasets.preprocess import Transforms
-from utils.utils import seed_everything, worker_init_fn
+
 
 
 

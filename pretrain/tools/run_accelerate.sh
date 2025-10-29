@@ -10,7 +10,7 @@ cd /mnt/yht/code/HeltonPretrain
 
 
 # mlpnet
-/mnt/yht/env/yht_pretrain/bin/accelerate launch --config_file configs/accelerate_yamls/accelerate_ddp.yaml \
-    tools/train_accelerate.py \
+PYTHONPATH=. /mnt/yht/env/yht_pretrain/bin/accelerate launch --config_file heltonx/configs/accelerate_yamls/accelerate_ddp.yaml \
+    pretrain/tools/train_accelerate.py \
     --config /mnt/yht/code/HeltonPretrain/pretrain/configs/mlpnet_ddp.py
 

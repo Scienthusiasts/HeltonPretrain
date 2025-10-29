@@ -1,11 +1,11 @@
 import torch.nn as nn
 import timm
 import torch.nn.functional as F
-from utils.ckpts_utils import *
-from utils.utils import init_weights
+from heltonx.utils.ckpts_utils import *
+from heltonx.utils.utils import init_weights
 # 注册机制
-from utils.register import MODELS
-from utils.utils import multi_apply
+from heltonx.utils.register import MODELS
+from heltonx.utils.utils import multi_apply
 
 
 

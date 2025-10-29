@@ -9,9 +9,7 @@ from torch.utils.data import DataLoader
 from utils.utils import seed_everything, worker_init_fn, get_args, dynamic_import_class
 from utils.log_utils import *
 from utils.hooks import hook_after_eval
-# 需要import才能注册
-from pretrain import * 
-from utils.register import MODELS, DATASETS, EVALPIPELINES
+from heltonx.utils.register import MODELS, DATASETS, EVALPIPELINES
 
 
 
@@ -79,25 +77,3 @@ class Evaler():
         '''
         self.call_hooks("before_eval", runner=self)
         self.call_hooks("after_eval", runner=self)
-
-
-
-
-# for test only:
-if __name__ == '__main__':
-    args = get_args()
-    config_path = args.config
-    # 使用动态导入模块导入参数文件
-    cargs = dynamic_import_class(config_path, get_class=False)
-    # 初始化runner
-    runner = Evaler(cargs.seed, cargs.log_dir, cargs.model_cfgs, cargs.dataset_cfgs)
-    # 注册 Hook
-    # 任务特定的评估pipeline
-    eval_pipeline = EVALPIPELINES.build_from_cfg(cargs.eval_pipeline_cfgs)
-    runner.register_hook("after_eval", hook_after_eval)
-    runner.eval()
-
-
-
-
-

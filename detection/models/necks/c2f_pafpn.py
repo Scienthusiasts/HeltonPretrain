@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.utils import init_weights
-from utils.register import MODELS
+from heltonx.utils.utils import init_weights
+from heltonx.utils.register import MODELS
 from detection.models.yolo_blocks import C2f
 
 

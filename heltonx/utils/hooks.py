@@ -1,7 +1,7 @@
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
-from utils.ckpts_utils import save_ckpt
+from heltonx.utils.ckpts_utils import save_ckpt
 
 
 

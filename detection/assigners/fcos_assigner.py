@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from detection.utils.fcos_utils import *
-from utils.register import MODELS
-from utils.utils import multi_apply
+from heltonx.utils.register import MODELS
+from heltonx.utils.utils import multi_apply
 
 
 

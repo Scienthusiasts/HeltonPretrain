@@ -1,10 +1,10 @@
 import torch.nn as nn
 import clip
 
-from utils.utils import *
+from heltonx.utils.utils import *
 from pretrain.datasets.preprocess import Transforms
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

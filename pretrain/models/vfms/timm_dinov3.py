@@ -3,10 +3,10 @@ import timm
 import math
 import torch.nn.functional as F
 
-from utils.ckpts_utils import *
+from heltonx.utils.ckpts_utils import *
 from pretrain.datasets.preprocess import Transforms
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 
@@ -130,6 +130,7 @@ class DINOv3(nn.Module):
 if __name__ == '__main__':
     from PIL import Image
     import matplotlib.pyplot as plt
+    import numpy as np
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     img_size = [1024, 1024] 

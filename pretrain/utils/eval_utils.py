@@ -13,7 +13,7 @@ from pretrain.datasets.preprocess import Transforms
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
-from utils.register import EVALPIPELINES
+from heltonx.utils.register import EVALPIPELINES
 
 
 

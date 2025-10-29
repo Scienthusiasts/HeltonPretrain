@@ -1,5 +1,5 @@
-from .loss import MSELoss, BCELoss, FocalLoss, QFocalLoss, GIoULoss
+from .loss import MSELoss, BCELoss, FocalLoss, QFocalLoss, IoULoss
 
 __all__ = [
-    "MSELoss", "BCELoss", "FocalLoss", "QFocalLoss", "GIoULoss",
+    "MSELoss", "BCELoss", "FocalLoss", "QFocalLoss", "IoULoss",
     ]

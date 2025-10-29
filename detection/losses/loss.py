@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

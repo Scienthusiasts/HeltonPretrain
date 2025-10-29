@@ -4,7 +4,7 @@ import timm
 import torch.distributed as dist
 import numpy as np
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

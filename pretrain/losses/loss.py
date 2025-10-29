@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

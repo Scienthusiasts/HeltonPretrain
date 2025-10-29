@@ -3,27 +3,44 @@
     <img src="https://github.com/Scienthusiasts/heltonx/blob/main/demo/logo.png"/>
     <p><em>致力于 0~1 实现通用深度学习框架，基于 Pytorch，支持各类下游任务，不断完善中 ~</em></p>
 </div>
+## 🚀框架优势
 
+- `reader-friendly`：关键代码包含详细的注释(包括输入输出维度)，易上手阅读
+- `beginner-friendly`：关键模块解耦实现，各个模块互不干扰，组织结构清晰
+- `coding-friendly`：代码封装程度适中，避免过度封装，易上手修改
+- `build-from-scratch`：框架底层直接基于Pytorch，不包含任何第三方上层框架，任何算法设计全流程实现
 
 
 ## ✒️设计逻辑
-设计理念: 简洁版mm框架
-
 **框架设计逻辑： 通用(换一个任务, 当前的设计逻辑可以完全套用) / 专用(仅适用于当前任务)**
+
+框架总体逻辑
 
 ```
 HeltonX:
-├─demo    (README展示相关)
+├─demo       (README展示相关)
+├─ckpts      (预训练权重放在这里)
+├─heltonx    (通用, 实现基本的train/eval pipeline)
+├─pretrain   (专用, 自定义预训练任务)
+├─detection  (专用, 自定义检测任务)
+└─generation (专用, 自定义生成任务)
+```
+
+heltonx逻辑
+
+```
+heltonx:  
 ├─configs
 │  └─accelerate_yamls
-│     ├─accelerate_ddp.yaml         (通用, Accelerator库ddp训练配置文件)
-│     └─accelerate_single_gpu.yaml  (通用, Accelerator库单卡训练配置文件)
+│  ├─accelerate_ddp.yaml         (通用, Accelerator库ddp训练配置文件)
+│  └─accelerate_single_gpu.yaml  (通用, Accelerator库单卡训练配置文件)
 ├─tools
 │  ├─train.py            (通用, 训练pipeline)
 │  ├─train_accelerate.py (通用, 基于Accelerator库的训练pipeline)
 │  └─eval.py             (通用, 评估pipeline)
 ├─utils            
 │  ├─utils.py            (通用, 一些可能用到的方法)
+│  ├─wrappers.py         (通用, 一些包装器或抽象类)
 │  ├─ckpts_utils.py      (通用, 权重load/save相关逻辑)
 │  ├─log_utils.py        (通用, 日志记录逻辑)
 │  ├─hooks.py            (通用, 钩子机制, 实现训练,评估时必用的方法)
@@ -32,31 +49,36 @@ HeltonX:
 ├─optimization
 │  ├─optimizers.py  (通用, 优化器)
 │  └─schedulers.py  (通用, 学习率decay)
-├─setup.py (安装脚本)
-│------------------------------------------------------------- 
-├─pretrain    (专用, 但其组织形式通用)
-│  ├─configs  (自定义模型配置参数文件)
-│  ├─datasets (自定义Dataset和数据增强)
-│  ├─losses   (自定义损失函数)
-│  ├─models         (自定义网络组件)
-│  │  ├─backbones   (自定义骨干网络)
-│  │  ├─classifiers (自定义分类器)
-│  │  ├─heads       (自定义任务头)
-│  │  └─vfms        (视觉基础模型)
-│  ├─utils             (实现任务特定的相关功能)
-│  │  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
-│  │  └─metrics.py     (评估指标计算, 和具体任务有关)
-│  └─tools             
-│     ├─test.py            (测试相关逻辑, 完善中)
-│     ├─run.sh             (DDP训练脚本)
-│     └─run_accelerate.sh  (基于Accelerator库的DDP训练脚本)
-├─generation    (同pretrain)
-│   └─... ...
-└─detection     (同pretrain)
-    └─... ...
+└─setup.py (安装脚本)
 ```
 
-###  `utils/register.py`
+pretrain逻辑
+
+```
+pretrain:
+├─configs  (自定义模型配置参数文件)
+├─datasets (自定义Dataset和数据增强)
+├─losses   (自定义损失函数)
+├─models         (自定义网络组件)
+│  ├─backbones   (自定义骨干网络)
+│  ├─classifiers (自定义分类器)
+│  ├─heads       (自定义任务头)
+│  └─vfms        (视觉基础模型)
+├─utils             (实现任务特定的相关功能)
+│  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
+│  └─metrics.py     (评估指标计算, 和具体任务有关)
+└─tools    
+   ├─train.py            (训练pipeline)
+   ├─train_accelerate.py (基于Accelerator库的训练pipeline)
+   ├─eval.py             (评估pipeline)
+   ├─test.py             (测试相关逻辑, 完善中)
+   ├─run.sh              (DDP训练脚本)
+   └─run_accelerate.sh   (基于Accelerator库的DDP训练脚本)
+```
+
+
+
+###  `heltonx/utils/register.py`
 
 - `MODELS`：注册nn.Module子类
 - `DATASETS`：注册dataset.Dataset子类
@@ -64,7 +86,7 @@ HeltonX:
 - `SCHEDULERS`：注册torch.optim.lr_scheduler子类
 - `EVALPIPELINES`：注册任务特定的评估pipelines
 
-### `utils/hooks.py`
+### `heltonx/utils/hooks.py`
 
 - `NecessaryHook.hook_after_batch`：记录/打印日志
 - `NecessaryHook.hook_after_epoch`：**评估**+记录/打印日志+保存权重
@@ -83,14 +105,19 @@ HeltonX:
 - scheduler_cfgs：学习率decay相关配置参数
 - eval_pipeline_cfgs：任务特定的评估pipeline配置参数
 
+### 其他
+
+- 
+
 
 
 ## 🔧安装
 
 ```bash
 conda create -n hx python=3.10
-cd HeltonXNet
+conda activate hx
 pip install -r requirements.txt
+cd heltonx/heltonx
 pip install -e .
 ```
 
@@ -99,24 +126,23 @@ pip install -e .
 
 ## 🔥训练
 
-单卡训练 example
+单卡训练 example (xxx指具体下游任务所在的文件夹)
 
 ```bash
 # 根据具体需求修改config文件里相关配置参数, mode="train"
-python tools/train.py --config pretrain/configs/xxx.py
+python ./xxx/tools/train.py --config pretrain/configs/xxxconfigs.py
 
 # 或，使用accelerate库封装过的训练pipeline
-CUDA_VISIBLE_DEVICES=0 accelerate launch --config_file tools/accelerate_single_gpu.yaml tools/train_accelerate.py --config pretrain/configs/xxx.py
+CUDA_VISIBLE_DEVICES=0 accelerate launch --config_file tools/accelerate_single_gpu.yaml tools/train_accelerate.py --config xxx/configs/xxxconfigs.py
 ```
 
-DDP 多卡训练 example
+DDP 多卡训练 example (xxx指具体下游任务所在的文件夹)
 
 ```bash
-# 根据具体需求修改config文件里相关配置参数, config文件下mode="train_ddp"
-sh pretrain/tools/run.sh
-
+# 根据具体需求修改config文件里相关配置参数, mode="train_ddp"
+sh ./xxx/tools/run.sh
 # 或，使用accelerate库封装过的训练pipeline
-sh pretrain/tools/run_accelerate.sh
+sh ./xxx/tools/run_accelerate.sh
 ```
 
 
@@ -124,16 +150,15 @@ sh pretrain/tools/run_accelerate.sh
 ## 🔥评估
 
 ```bash
-# 注意修改config文件里对应参数, mode="eval"
-python tools/eval.py --config pretrain/configs/xxx.py
+python ./xxx/tools/eval.py --config xxx/configs/xxxconfigs.py
 ```
 
 
 
-## 🔥推理 (完善中...)
+## 🔥推理 (待进一步完善)
 
 ```bash
-python pretrain/tools/test.py 
+python ./xxx/tools/test.py 
 ```
 
 

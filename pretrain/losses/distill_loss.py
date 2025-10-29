@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.register import MODELS
-from utils.wrappers import NoSaveWrapper
+from heltonx.utils.register import MODELS
+from heltonx.utils.wrappers import NoSaveWrapper
 
 
 

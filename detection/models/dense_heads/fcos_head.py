@@ -5,10 +5,10 @@ import math
 import torch.distributed as dist
 from utils.utils import init_weights
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
+from heltonx.utils.utils import multi_apply
 from detection.utils.fcos_utils import *
 from detection.losses import *
-from utils.utils import multi_apply
 
 
 

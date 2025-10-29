@@ -12,7 +12,7 @@ import numpy as np
 from generation.datasets.preprocess import Transforms
 # 需要import才能注册
 from generation import * 
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

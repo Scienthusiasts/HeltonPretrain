@@ -2,10 +2,10 @@ import torch.nn as nn
 from transformers import AutoImageProcessor, AutoTokenizer, AutoModelForCausalLM
 import math
 
-from utils.utils import *
+from heltonx.utils.utils import *
 from pretrain.datasets.preprocess import Transforms
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 

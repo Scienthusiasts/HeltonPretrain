@@ -9,9 +9,8 @@ import torch.distributed as dist
 import random
 import cv2
 # 自定义
-from utils.register import DATASETS
-from utils.wrappers import DDPSafeDataset
-from utils.utils import seed_everything, worker_init_fn, natural_key
+from heltonx.utils.register import DATASETS
+from heltonx.utils.wrappers import DDPSafeDataset
 from detection.datasets.preprocess import Transforms
 # 允许加载截断的图像
 ImageFile.LOAD_TRUNCATED_IMAGES = True

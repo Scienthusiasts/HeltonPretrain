@@ -3,9 +3,9 @@ import torch.nn as nn
 import timm
 import torch.distributed as dist
 
-from utils.ckpts_utils import load_state_dict_with_prefix
+from heltonx.utils.ckpts_utils import load_state_dict_with_prefix
 # 注册机制
-from utils.register import MODELS
+from heltonx.utils.register import MODELS
 
 
 @MODELS.register

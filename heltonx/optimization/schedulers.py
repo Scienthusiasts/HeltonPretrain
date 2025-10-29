@@ -1,6 +1,6 @@
 import inspect
 import torch.optim.lr_scheduler as lr_scheduler
-from utils.register import SCHEDULERS
+from heltonx.utils.register import SCHEDULERS
 
 # 批量注册 torch.optim.lr_scheduler 里的常见scheduler
 # 遍历 lr_scheduler 模块下的所有类
