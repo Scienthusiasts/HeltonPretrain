@@ -26,7 +26,7 @@ HeltonX:
 └─generation (专用, 自定义生成任务)
 ```
 
-heltonx逻辑
+`heltonx` 逻辑
 
 ```
 heltonx:  
@@ -52,31 +52,9 @@ heltonx:
 └─setup.py (安装脚本)
 ```
 
-pretrain逻辑
+### [`pretrain` 逻辑](https://github.com/Scienthusiasts/heltonx/blob/main/pretrain/README.md)
 
-```
-pretrain:
-├─configs  (自定义模型配置参数文件)
-├─datasets (自定义Dataset和数据增强)
-├─losses   (自定义损失函数)
-├─models         (自定义网络组件)
-│  ├─backbones   (自定义骨干网络)
-│  ├─classifiers (自定义分类器)
-│  ├─heads       (自定义任务头)
-│  └─vfms        (视觉基础模型)
-├─utils             (实现任务特定的相关功能)
-│  ├─eval_utils.py  (评估pipeline, 和具体任务有关)
-│  └─metrics.py     (评估指标计算, 和具体任务有关)
-└─tools    
-   ├─train.py            (训练pipeline)
-   ├─train_accelerate.py (基于Accelerator库的训练pipeline)
-   ├─eval.py             (评估pipeline)
-   ├─test.py             (测试相关逻辑, 完善中)
-   ├─run.sh              (DDP训练脚本)
-   └─run_accelerate.sh   (基于Accelerator库的DDP训练脚本)
-```
-
-
+###  [`detection` 逻辑](https://github.com/Scienthusiasts/heltonx/blob/main/detection/README.md)
 
 ###  `heltonx/utils/register.py`
 
