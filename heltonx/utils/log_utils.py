@@ -3,6 +3,7 @@ import os
 import json
 import torch
 import logging
+import time
 import datetime
 import argparse
 from torch import nn
@@ -244,14 +245,15 @@ class ModelInfoLogger:
 class RunnerLogger:
     """日志记录/打印相关
     """
-    def __init__(self, mode:str, log_dir:str, log_interval:int, eval_interval:int, batch_num:int):
+    def __init__(self, mode:str, log_dir:str, log_interval:int, eval_interval:int, batch_num:int, total_epoch:int):
         '''生成logger日志对象用于后续打印和记录
             Args:
-                mode:         网络模型
-                log_dir:      日志文件保存目录
-                log_interval: 日志打印间隔(几个iter打印一次)
-                eval_interval:
-                batch_num:    一个epoch包含的batch数量
+                mode:          网络模型
+                log_dir:       日志文件保存目录
+                log_interval:  日志打印间隔(几个iter打印一次)
+                eval_interval: 每隔多少epoch评估一次
+                batch_num:     一个epoch包含的batch数量
+                total_epoch:   总训练epoch
         '''
         self.mode = mode
         self.log_interval = log_interval
@@ -260,6 +262,9 @@ class RunnerLogger:
         self.batch_num = batch_num
         self.logger.setLevel(level=logging.DEBUG)
         self.log_dir = log_dir
+        self.total_iters = total_epoch * self.batch_num
+        self.last_time = time.time()
+        self.interval_time = 0
         # 日志格式
         formatter = logging.Formatter('%(asctime)s: %(message)s')
         # 写入文件的日志
@@ -333,6 +338,11 @@ class RunnerLogger:
                 2025-09-22 22:54:39,656: Epoch(train) [2][50/59]  lr: 0.000990  total_loss: 1.14722  cls_loss: 1.14722  acc: 0.82812  
                 2025-09-22 22:54:42,102: Epoch(train) [2][55/59]  lr: 0.000990  total_loss: 1.08477  cls_loss: 1.08477  acc: 0.73438 
         """   
+        # 记录每次iter耗时
+        self.interval_time = time.time() - self.last_time
+        self.last_time = time.time()
+        eta_hours = (self.total_iters - step) * self.interval_time / 3600
+        eta_mins = (eta_hours - int(eta_hours)) * 60
         '''记录'''
         current_lr = optimizer.param_groups[0]['lr']
         self.argsHistory.record('lr', current_lr)
@@ -345,7 +355,7 @@ class RunnerLogger:
             return
         # 右对齐, 打印更美观
         batch_idx = '{:>{}}'.format(step, len(f"{self.batch_num}"))
-        log = ("Epoch(train) [%d][%s/%d]  lr: %8f  ") % (epoch, batch_idx, self.batch_num, current_lr)
+        log = ("Epoch(train) [%d][%s/%d] eta: %02d:%02d  lr: %8f  ") % (epoch, batch_idx, self.batch_num, int(eta_hours), int(eta_mins), current_lr)
         for loss_name, loss_value in losses.items():
             loss_log = (loss_name+": %.5f  " % (loss_value.item()))
             log += loss_log

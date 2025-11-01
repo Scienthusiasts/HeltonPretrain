@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 # export CUDA_VISIBLE_DEVICES=0,1
 # export CUDA_VISIBLE_DEVICES=2,3
-# export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export CUDA_VISIBLE_DEVICES=0,3
-export CUDA_VISIBLE_DEVICES=1,2
+# export CUDA_VISIBLE_DEVICES=1,2
 
 # training 
 cd /mnt/yht/code/HeltonPretrain

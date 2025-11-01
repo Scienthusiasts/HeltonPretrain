@@ -3,6 +3,7 @@
     <img src="https://github.com/Scienthusiasts/heltonx/blob/main/demo/logo.png"/>
     <p><em>致力于 0~1 实现通用深度学习框架，基于 Pytorch，支持各类下游任务，不断完善中 ~</em></p>
 </div>
+
 ## 🚀框架优势
 
 - `reader-friendly`：关键代码包含详细的注释(包括输入输出维度)，易上手阅读
@@ -23,7 +24,8 @@ HeltonX:
 ├─heltonx    (通用, 实现基本的train/eval pipeline)
 ├─pretrain   (专用, 自定义预训练任务)
 ├─detection  (专用, 自定义检测任务)
-└─generation (专用, 自定义生成任务)
+├─generation (专用, 自定义生成任务)
+└─llm        (专用, 自定义对话大模型)
 ```
 
 `heltonx` 逻辑
@@ -153,7 +155,8 @@ python ./xxx/tools/test.py
 | `2025/10/4`  |             ✅ 添加基于 CLIP 蒸馏的多任务分类模型             |
 | `2025/10/11` | ➡️ 支持生成任务`./generation`, 支持 DDPM/DDIM (开发中，目前代码逻辑还不够清晰) |
 | `2025/10/12` |       ✨ **支持 `Accelerate`(一键 DDP、混合精度训练)**        |
-| `2025/10/21` | ✅ 支持检测任务`./detection`，支持FCOS检测器，COCO格式数据读取 |
+| `2025/10/21` | ✅ 支持检测任务`./detection`，支持 FCOS 检测器，COCO 格式数据读取 |
+| `2025/11/1`  |                ➡️ 支持 LLM 训练和推理 (开发中)                |
 
 
 

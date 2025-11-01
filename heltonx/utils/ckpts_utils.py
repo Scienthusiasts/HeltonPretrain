@@ -126,7 +126,7 @@ def load_state_dict_with_prefix(model, load_ckpt, prefixes_to_try=['model.', 'mo
 
 
 
-def save_ckpt(epoch, eval_interval, model, scheduler, log_dir, argsHistory, flag_metric_name):
+def save_ckpt(epoch, eval_interval, model, scheduler, log_dir, argsHistory, flag_metric_name=None):
     '''保存权重和训练断点
         Args:
             - epoch:       当前epoch
@@ -151,11 +151,12 @@ def save_ckpt(epoch, eval_interval, model, scheduler, log_dir, argsHistory, flag
     torch.save(checkpoint_dict, os.path.join(log_dir, f"train_epoch{epoch}.pt"))
     torch.save(ckpt, os.path.join(log_dir, "last.pt"))
     # 如果本次Epoch的参考指标最大，则保存网络参数
-    flag_metric_list = argsHistory.args_history_dict[flag_metric_name]
-    best_flag_metric_val = max(flag_metric_list)
-    best_epoch = flag_metric_list.index(best_flag_metric_val) + 1
-    if epoch == best_epoch * eval_interval:
-        torch.save(ckpt, os.path.join(log_dir, f'best_{flag_metric_name}.pt'))
+    if flag_metric_name:
+        flag_metric_list = argsHistory.args_history_dict[flag_metric_name]
+        best_flag_metric_val = max(flag_metric_list)
+        best_epoch = flag_metric_list.index(best_flag_metric_val) + 1
+        if epoch == best_epoch * eval_interval:
+            torch.save(ckpt, os.path.join(log_dir, f'best_{flag_metric_name}.pt'))
 
 
 

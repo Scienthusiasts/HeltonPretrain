@@ -9,7 +9,7 @@ from heltonx.utils.ckpts_utils import save_ckpt
 class NecessaryHook():
     """实现训练/评估时一定会用到的hooks
     """
-    def __init__(self, eval_pipeline):
+    def __init__(self, eval_pipeline=None):
         """
             Args:
                 eval_pipeline: 任务特定的评估实例
@@ -34,7 +34,10 @@ class NecessaryHook():
         """
         if (runner.cur_epoch % runner.eval_interval == 0 or runner.cur_epoch == runner.epoch) and runner.accelerator.is_main_process:
             # 评估+记录/打印日志
-            flag_metric_name = self.hook_after_eval(runner)
+            if self.eval_pipeline:
+                flag_metric_name = self.hook_after_eval(runner)
+            else:
+                flag_metric_name = None
             # 保存权重
             if runner.accelerator.is_main_process:
                 model_unwrapped = runner.accelerator.unwrap_model(runner.model)

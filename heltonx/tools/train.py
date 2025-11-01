@@ -20,7 +20,7 @@ from heltonx.utils.register import MODELS, DATASETS, OPTIMIZERS, SCHEDULERS, EVA
 
 class Trainer():
     """整合训练/验证/推理时的抽象流程"""
-    def __init__(self, mode, epoch, seed, log_dir, log_interval, eval_interval, resume_path, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs):
+    def __init__(self, mode, epoch, seed, log_dir, log_interval, eval_interval, resume_path, model_cfgs, dataset_cfgs, optimizer_cfgs, scheduler_cfgs, grad_accumulate=None, grad_clip=None):
         """初始化各种模块
             Args:
                 mode:               train, train_ddp
@@ -34,6 +34,8 @@ class Trainer():
                 dataset_cfgs:       和数据集有关的配置参数
                 optimizer_cfgs:     和优化器有关的配置参数
                 scheduler_cfgs:     和学习率衰减策略有关的配置参数
+                grad_accumulate:    是否开启梯度累加策略(不额外增加显存占用, 增大bs)
+                grad_clip:          梯度裁剪, 训练LLM时通常搭配grad_accumulate使用, 避免梯度爆炸
         """
         self.mode = mode
         self.log_dir = log_dir
@@ -44,6 +46,8 @@ class Trainer():
         self.cur_step = 0
         self.losses = None
         self.seed = seed
+        self.grad_accumulate = grad_accumulate
+        self.grad_clip = grad_clip
         # 设置全局种子
         seed_everything(self.seed)
 
@@ -131,6 +135,8 @@ class Trainer():
 
 
 
+
+
     def fit_batch(self, batch_datas):
         """一个batch的训练流程(前向+反向)
             Args:
@@ -138,22 +144,37 @@ class Trainer():
         """
         self.call_hooks("before_batch", runner=self)
 
-        # 一个batch的前向传播+计算损失 
         # 确保 batch_datas 的所有数据已经在 self.device 上(batch_datas的组织形式是list)
         batch_datas = to_device(batch_datas, self.device, non_blocking=True)
+
+        '''计算损失'''
         self.losses = self.model(batch_datas, return_loss=True)
-        # 将上一次迭代计算的梯度清零 
-        self.optimizer.zero_grad()
-        # 反向传播
         self.losses["total_loss"] = sum(
             v for v in self.losses.values()
             if torch.is_tensor(v) and v.requires_grad
         )
+        if self.grad_accumulate:
+            # 启用梯度累加时, 每个batch的loss需要等比例缩小(保证梯度也等比例缩小)
+            self.losses["total_loss"] = self.losses["total_loss"] / self.grad_accumulate
+        '''反向传播'''
         self.losses['total_loss'].backward()
-        # 更新权重
-        self.optimizer.step()
+        '''梯度更新'''
+        # 启用梯度累加时迭代的步数达到累加的步数时才进行梯度更新, 这样等效于增大了bs
+        if self.grad_accumulate is None or (self.cur_step+1) % self.grad_accumulate==0:
+            # 梯度裁剪 LLM 训练中使用, 保证训练的稳定性
+            if self.grad_clip:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+            # 更新参数
+            self.optimizer.step()
+            # 将上一次迭代计算的梯度清零 
+            self.optimizer.zero_grad(set_to_none=True)
 
+        # 这一步只是为了日志打印时正常显示totalloss, 而不是缩放后的totalloss
+        if self.grad_accumulate:
+            self.losses["total_loss"] = self.losses["total_loss"] * self.grad_accumulate
+            
         self.call_hooks("after_batch", runner=self)
+
 
 
 

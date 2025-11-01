@@ -14,7 +14,7 @@ from pycocotools.coco import COCO
 from heltonx.utils.register import DATASETS
 from heltonx.utils.utils import seed_everything, worker_init_fn, natural_key
 from detection.datasets.preprocess import Transforms
-from detection.datasets.BaseDataset import BaseDetDataset
+from detection.datasets.base_dataset import BaseDetDataset
 # 允许加载截断的图像
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
